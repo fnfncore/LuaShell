@@ -1,6 +1,6 @@
 # LuaShell
 
--- Setup
+Setup
 
 cd LuaShell
 
@@ -9,6 +9,6 @@ mkdir ~/.luashell
 cp -r script/lua ~/.luashell
 
 
--- Use RPC
+Use RPC
 
 rpc = require "rpc"
