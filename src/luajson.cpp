@@ -19,7 +19,7 @@ namespace luashell
 
 static bool L_JsonEncodeObject(lua_State *L,Object& obj)
 {
-    if (!lua_isstring(L,-2))
+    if (lua_isinteger(L,-2))
     {
         lua_pop(L,2);
         return false;
@@ -69,7 +69,7 @@ static bool L_JsonEncodeObject(lua_State *L,Object& obj)
 
 static bool L_JsonEncodeArray(lua_State *L,Array& array)
 {
-    if (lua_isstring(L,-2))
+    if (!lua_isinteger(L,-2))
     {
         lua_pop(L,2);
         return false;
@@ -121,7 +121,7 @@ bool L_JsonEncode(lua_State *L,Value& val,int idx)
     lua_pushnil(L);
     if (lua_next(L,idx) != 0)
     {
-        if (lua_isstring(L,-2))
+        if (!lua_isinteger(L,-2))
         {
             Object obj;
             if (!L_JsonEncodeObject(L,obj))
@@ -129,7 +129,7 @@ bool L_JsonEncode(lua_State *L,Value& val,int idx)
                 return false;
             }
             lua_pop(L,1);
-            while (lua_next(L,-2) != 0)
+            while (lua_next(L,idx) != 0)
             {
                 if (!L_JsonEncodeObject(L,obj))
                 {
@@ -147,7 +147,7 @@ bool L_JsonEncode(lua_State *L,Value& val,int idx)
                 return false;
             }
             lua_pop(L,1);
-            while (lua_next(L,-2) != 0)
+            while (lua_next(L,idx) != 0)
             {
                 if (!L_JsonEncodeArray(L,array))
                 {

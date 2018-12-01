@@ -4,6 +4,89 @@
 
 local rpc = { _version = "0.1" }
 
+local function makedelegateparam(delegate,owner)
+  if type(delegate) ~= "string" then
+    error("expected delegate of type string, got " .. type(delegate))
+  end
+  if type(owner) ~= "string" then
+    error("expected owner of type string, got " .. type(owner))
+  end
+  return { ["type"] = "delegate", 
+           ["delegate"] = { ["delegate"] = delegate, ["owner"] = owner } }
+end
+
+local function makeforkparam(redeem,fork)
+  if type(redeem) ~= "string" then
+    error("expected redeem of type string, got " .. type(redeem))
+  end
+  if type(fork) ~= "string" then
+    error("expected fork of type string, got " .. type(fork))
+  end
+  return { ["type"] = "fork",
+           ["fork"] = { ["redeem"] = redeem, ["fork"] = fork } }
+end
+
+local function makemintparam(mint,spent)
+  if type(mint) ~= "string" then
+    error("expected mint of type string, got " .. type(mint))
+  end
+  if type(spent) ~= "string" then
+    error("expected spent of type string, got " .. type(spent))
+  end
+  return { ["type"] = "mint",
+           ["mint"] = { ["mint"] = mint, ["spent"] = spent } }
+end
+
+local function makemultisigparam(required,pubkeys)
+  if type(required) ~= "number" then
+    error("expected required of type number, got " .. type(required))
+  end
+  if type(pubkeys) ~= "table" then
+    error("expected pubkeys of type table, got " .. type(pubkeys))
+  end
+  for k,v in pairs(pubkeys) do
+    if type(k) ~= "number" then
+      error("expected idx of type number, got " .. type(k))
+    end
+    if type(v) ~= "string" then
+      error("expected key of type string, got " .. type(v))
+    end
+  end
+  return { ["type"] = "multisig",
+           ["multisig"] = { ["required"] = required, ["pubkeys"] = pubkeys } }
+end
+
+local function makeweightedparam(required,weighted)
+  if type(required) ~= "number" then
+    error("expected required of type number, got " .. type(required))
+  end
+  if type(weighted) ~= "table" then
+    error("expected weighted of type table, got " .. type(weighted))
+  end
+
+  local pubkeys = {}
+  for k,v in pairs(weighted) do
+    if type(k) ~= "string" then
+      error("expected key of type string, got " .. type(k))
+    end
+    if type(v) ~= "number" then
+      error("expected weight of type number, got " .. type(v))
+    end
+    table.insert(pubkeys,{ ["key"] = k, ["weight"] = v })
+  end
+  return { ["type"] = "weighted",
+           ["weighted"] = { ["required"] = required, ["pubkeys"] = pubkeys } }
+end
+
+local maketemplateparam = {
+  [ "delegate" ] = makedelegateparam,
+  [ "fork"     ] = makeforkparam,
+  [ "mint"     ] = makemintparam,
+  [ "multisig" ] = makemultisigparam,
+  [ "weighted" ] = makeweightedparam
+}
+
+
 -- System
 
 function rpc.help(command)
@@ -182,6 +265,17 @@ function rpc.importprivkey(privkey, passphrase)
   return rpccall("importprivkey",{ ["privkey"] = privkey, ["passphrase"] = passphrase })
 end
 
+function rpc.addnewtemplate(ttype,...)
+  if type(ttype) ~= "string" then
+    error("expected ttype of type string, got " .. type(ttype))
+  end
+  if not maketemplateparam[ttype] then
+    error("unknown template type " .. ttype)
+  end
+
+  return rpccall("addnewtemplate",maketemplateparam[ttype](...))
+end
+
 function rpc.listaddress()
   return rpccall("listaddress",{})
 end
@@ -326,6 +420,17 @@ function rpc.gettemplateaddress(tid)
     error("expected tid of type string, got " .. type(tid))
   end
   return rpccall("gettemplateaddress",{ ["tid"] = tid })
+end
+
+function rpc.maketemplate(ttype,...)
+  if type(ttype) ~= "string" then
+    error("expected ttype of type string, got " .. type(ttype))
+  end
+  if not maketemplateparam[ttype] then
+    error("unknown template type " .. ttype)
+  end
+
+  return rpccall("maketemplate",maketemplateparam[ttype](...))
 end
 
 function rpc.decodetransaction(txdata)
