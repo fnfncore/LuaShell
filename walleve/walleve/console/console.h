@@ -22,7 +22,7 @@ namespace walleve
 class CConsole : public IWalleveBase
 {
 public:
-    CConsole(const std::string& walleveOwnKeyIn,const std::string& strPromptIn);
+    CConsole(const std::string& walleveOwnKeyIn,const std::string& strPromptIn, const bool fConsoleIn);
     virtual ~CConsole();
     bool DispatchEvent(CWalleveEvent* pEvent) override;
     void DispatchLine(const std::string& strLine); 
@@ -37,6 +37,8 @@ protected:
     virtual void EnterLoop();
     virtual void LeaveLoop();
     virtual bool HandleLine(const std::string& strLine);
+    virtual void ExecuteCommand();
+    virtual void ExitCommand();
 
 private:
     void WaitForChars();
@@ -45,6 +47,7 @@ private:
     void ConsoleHandleEvent(CWalleveEvent* pEvent,CIOCompletion& compltHandle);
     void ConsoleHandleLine(const std::string& strLine);
     void ConsoleHandleOutput(const std::string& strOutput);
+    void CommandThreadFunc();
 public:
     static CConsole* pCurrentConsole;
     static boost::mutex mutexConsole;
@@ -56,6 +59,7 @@ private:
     boost::asio::io_service::strand ioStrand;
     stream_desc inStream;
     boost::asio::null_buffers bufReadNull;
+    bool fConsole;
 };
 
 } // namespace walleve

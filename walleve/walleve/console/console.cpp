@@ -22,9 +22,11 @@ using namespace walleve;
 CConsole* CConsole::pCurrentConsole = NULL;
 boost::mutex CConsole::mutexConsole;
 
-CConsole::CConsole(const string& walleveOwnKeyIn,const string& strPromptIn)
+CConsole::CConsole(const string& walleveOwnKeyIn,const string& strPromptIn, const bool fConsoleIn)
 : IWalleveBase(walleveOwnKeyIn),
-  thrConsole(walleveOwnKeyIn,boost::bind(&CConsole::ConsoleThreadFunc,this)),strPrompt(strPromptIn),
+  fConsole(fConsoleIn),
+  thrConsole(walleveOwnKeyIn,boost::bind(fConsoleIn ? &CConsole::ConsoleThreadFunc : &CConsole::CommandThreadFunc, this)),
+  strPrompt(strPromptIn),
   ioStrand(ioService),
 #ifdef WIN32
   inStream(ioService, GetStdHandle(STD_INPUT_HANDLE))
@@ -67,7 +69,7 @@ void CConsole::DispatchOutput(const std::string& strOutput)
 
 bool CConsole::WalleveHandleInvoke()
 {
-    if (!InstallReadline(strPrompt))
+    if (fConsole && !InstallReadline(strPrompt))
     {
         WalleveLog("Failed to setup readline\n");
         return false;
@@ -89,6 +91,12 @@ void CConsole::WalleveHandleHalt()
     {
         ioService.stop();
     }
+
+    if (!fConsole)
+    {
+        ExitCommand();
+    }
+
     WalleveThreadExit(thrConsole);
     UninstallReadline();
 }
@@ -128,6 +136,16 @@ void CConsole::LeaveLoop()
 bool CConsole::HandleLine(const string& strLine)
 {
     return true;
+}
+
+void CConsole::ExecuteCommand()
+{
+    return;
+}
+
+void CConsole::ExitCommand()
+{
+    return;
 }
 
 void CConsole::ReadlineCallback(char *line)
@@ -172,6 +190,11 @@ void CConsole::ConsoleThreadFunc()
     ioService.run();
 
     LeaveLoop();    
+}
+
+void CConsole::CommandThreadFunc()
+{
+    ExecuteCommand();
 }
 
 void CConsole::ConsoleHandleEvent(CWalleveEvent* pEvent,CIOCompletion& compltHandle)

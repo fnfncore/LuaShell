@@ -42,19 +42,37 @@ void CRPCClient::WalleveHandleDeinitialize()
 
 bool CRPCClient::HandleEvent(CWalleveEventHttpGetRsp& eventHttpGetRsp)
 {
+    uint64 nNonce = eventHttpGetRsp.nNonce;
     CWalleveHttpRsp& rsp = eventHttpGetRsp.data;
+
+    bool ret = false;
+    Value valReply;
     if (rsp.nStatusCode == 200 && !rsp.strContent.empty())
     {
-        Value valReply;
-        if (read_string(rsp.strContent, valReply))
-        {
-            jsonRsp = valReply.get_obj();
-            ioComplt.Completed(true);
-            return true;
-        }
+        read_string(rsp.strContent, valReply);
+        ret = true;
     }
-    ioComplt.Completed(false);
-    return true;
+
+    if (nNonce == 0)
+    {
+        if (valReply.type() == Value_type::obj_type)
+        {
+            jsonRsp = valReply.get_obj();  
+        }
+
+        ioComplt.Completed(ret);
+        return ret;
+    }
+    else
+    {
+        auto it = mapAsyncCallback.find(nNonce);
+        if (it != mapAsyncCallback.end())
+        {
+            it->second(nNonce, valReply);
+            mapAsyncCallback.erase(it);
+        }
+        return ret;
+    }
 }
 
 bool CRPCClient::CallRPC(const string& strMethod,const Object& params,Object& jsonRspRet)
@@ -64,10 +82,30 @@ bool CRPCClient::CallRPC(const string& strMethod,const Object& params,Object& js
         Object request;
         request.push_back(Pair("method", strMethod));
         request.push_back(Pair("params", params));
-        request.push_back(Pair("id",1));
-        if (GetResponse(1,request))
+        request.push_back(Pair("id",0));
+        if (GetResponse(0,request))
         {
             jsonRspRet = jsonRsp; 
+            return true;
+        }
+    }
+    catch (...)
+    {
+    }
+    return false;
+}
+
+bool CRPCClient::CallAsyncRPC(uint64 nNonce, const std::string& strMethod,const json_spirit::Object& params, RespAsyncCallback callback)
+{
+    try
+    {
+        Object request;
+        request.push_back(Pair("method", strMethod));
+        request.push_back(Pair("params", params));
+        request.push_back(Pair("id",nNonce));
+        if (GetResponse(nNonce,request))
+        {
+            mapAsyncCallback[nNonce] = callback;
             return true;
         }
     }
@@ -112,12 +150,17 @@ bool CRPCClient::GetResponse(uint64 nNonce,Object& jsonReq)
 
     httpGet.strContent = write_string(Value(jsonReq), false) + "\n";
 
-    ioComplt.Reset();
-
     if (!pHttpGet->DispatchEvent(&eventHttpGet))
     {
         throw runtime_error("failed to send json request");
     }
-    bool fResult = false;
-    return (ioComplt.WaitForComplete(fResult) && fResult);
+
+    if (nNonce == 0)
+    {
+        ioComplt.Reset();
+        bool fResult = false;
+        return (ioComplt.WaitForComplete(fResult) && fResult);
+    }
+
+    return true;
 }

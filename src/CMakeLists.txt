@@ -37,4 +37,6 @@ target_link_libraries(luashell
 	lua
 )
 
-
+# install to path
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/luashell"
+	DESTINATION bin)

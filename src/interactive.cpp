@@ -8,6 +8,7 @@
 #include "json/json_spirit_writer_template.h"
 #include "json/json_spirit_utils.h"
 
+#include <numeric>
 #include <boost/filesystem.hpp>
 
 using namespace std;
@@ -15,11 +16,14 @@ using namespace luashell;
 using namespace walleve;
 using namespace json_spirit;
 
+extern void LuaShellShutdown();
+
 ///////////////////////////////
 // CInteractive
 
-CInteractive::CInteractive() 
-: CConsole("interactive","fnfn>")
+CInteractive::CInteractive(const bool fConsoleIn) 
+: CConsole("interactive", "fnfn>", fConsoleIn),
+  vecAsyncResp(nMaxRespSize), nRead(0), nWrite(0)
 {
     pRPCClient = NULL;
 }
@@ -66,6 +70,16 @@ bool CInteractive::WalleveHandleInitialize()
         WalleveLog("Failed to load lua printresult\n");
         return false;
     }
+    return true;
+}
+
+bool CInteractive::WalleveHandleInvoke()
+{
+    if (!CConsole::WalleveHandleInvoke())
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -143,6 +157,71 @@ bool CInteractive::HandleLine(const string& strLine)
     return fSingleLine;
 }
 
+void CInteractive::ExecuteCommand()
+{
+    const auto& vecCommand = WalleveConfig()->vecCommand;
+    try
+    {
+        if (vecCommand.size() == 0)
+        {
+            throw runtime_error("");
+        }
+
+        // modpath = package.searchpath(modname, package.path)
+        string modname = vecCommand[0].substr(0, vecCommand[0].find(".lua"));
+        lua_settop(luaState, 0);
+        lua_getglobal(luaState, "package");
+        lua_getfield(luaState, 1, "searchpath");
+        lua_pushstring(luaState, modname.c_str());
+        lua_getfield(luaState, 1, "path");
+        lua_remove(luaState, 1);
+        lua_pcall(luaState, 2, 1, 0);
+        if (lua_gettop(luaState) < 1 || !lua_isstring(luaState, -1))
+        {
+            lua_settop(luaState,0);
+            lua_getglobal(luaState, "package");
+            lua_getfield(luaState, 1, "path");
+            const char* path = lua_tostring(luaState, -1);
+            throw runtime_error(string("Not found ") + vecCommand[0] + " in " + path);
+        }
+        string modpath = lua_tostring(luaState, -1);
+
+        // loadfile(modpath)(arg1, arg2, ...)
+        lua_settop(luaState, 0);
+        if (luaL_loadfile(luaState, modpath.c_str()))
+        {
+            const char* err = lua_tostring(luaState, -1);
+            throw runtime_error(string("Load fail: ") + err);
+        }
+        lua_checkstack(luaState, vecCommand.size());
+        for (int i = 1; i < vecCommand.size(); i++)
+        {
+            lua_pushstring(luaState, vecCommand[i].c_str());
+        }
+
+        lua_pushboolean(luaState, true);
+        lua_setglobal(luaState, "running");
+        lua_pcall(luaState, vecCommand.size() - 1, LUA_MULTRET, 0);
+
+        if (lua_gettop(luaState) > 0 && lua_isstring(luaState, -1))
+        {
+            cerr << lua_tostring(luaState, -1) << endl;
+        }
+    }
+    catch (exception& e)
+    {
+        cerr << e.what() << endl;
+    }
+
+    LuaShellShutdown();
+}
+
+void CInteractive::ExitCommand()
+{
+    lua_pushboolean(luaState, false);
+    lua_setglobal(luaState, "running");
+}
+
 void CInteractive::ReportError()
 {
     if (!lua_isnil(luaState, -1))
@@ -166,7 +245,7 @@ int CInteractive::L_Error(lua_State *L,int errcode,const string& strMsg)
 
 int CInteractive::L_RPCCall(lua_State *L)
 {
-    CRPCClient* pRPCClient = static_cast<CRPCClient*>(lua_touserdata(L,lua_upvalueindex(1)));
+    CInteractive* ptr = static_cast<CInteractive*>(lua_touserdata(L,lua_upvalueindex(1)));
     if (lua_gettop(L) < 2 || !lua_isstring(L,1) || !lua_istable(L,2))
     {
         return L_Error(L,-32602,"invalid parameter");
@@ -179,7 +258,7 @@ int CInteractive::L_RPCCall(lua_State *L)
     } 
 
     Object reply;
-    if (!pRPCClient->CallRPC(lua_tostring(L,1),param.get_obj(),reply))
+    if (!ptr->pRPCClient->CallRPC(lua_tostring(L,1),param.get_obj(),reply))
     {
         return L_Error(L,-32603,"rpc failed");
     }
@@ -203,7 +282,7 @@ int CInteractive::L_RPCCall(lua_State *L)
  
 int CInteractive::L_RPCJson(lua_State *L)
 {
-    CRPCClient* pRPCClient = static_cast<CRPCClient*>(lua_touserdata(L,lua_upvalueindex(1)));
+    CInteractive* ptr = static_cast<CInteractive*>(lua_touserdata(L,lua_upvalueindex(1)));
     if (lua_gettop(L) < 2 || !lua_isstring(L,1) || !lua_isstring(L,2))
     {
         return L_Error(L,-32602,"invalid parameter");
@@ -216,7 +295,7 @@ int CInteractive::L_RPCJson(lua_State *L)
     }
     
     Object reply;
-    if (!pRPCClient->CallRPC(lua_tostring(L,1),valParam.get_obj(),reply))
+    if (!ptr->pRPCClient->CallRPC(lua_tostring(L,1),valParam.get_obj(),reply))
     {
         return L_Error(L,-32603,"rpc failed");
     }
@@ -239,17 +318,152 @@ int CInteractive::L_RPCJson(lua_State *L)
     return 2;    
 }
 
+int CInteractive::L_RPCAsyncCall(lua_State *L)
+{
+    CInteractive* ptr = static_cast<CInteractive*>(lua_touserdata(L,lua_upvalueindex(1)));
+    if (lua_gettop(L) < 3 || !lua_isinteger(L, 1) || !lua_isstring(L, 2) || !lua_istable(L, 3))
+    {
+        return L_Error(L,-32602,"invalid parameter");
+    }
+   
+    Value param;
+    if (!L_JsonEncode(L,param,3) || param.type() != obj_type)
+    {
+        return L_Error(L,-32602,"invalid parameter");
+    } 
+
+    uint64 nNonce = lua_tointeger(L, 1);
+    if (!ptr->pRPCClient->CallAsyncRPC(nNonce, lua_tostring(L,2),
+            param.get_obj(), bind(&CInteractive::RPCAsyncCallback, ptr, _1, _2)))
+    {
+        return L_Error(L,-32603,"rpc failed");
+    }
+
+    ptr->mapAsyncLuaState[nNonce] = L;
+    lua_pushinteger(L, 0);
+    lua_pushstring(L, "success");
+    return lua_yield(L, 2);
+}
+
+int CInteractive::L_RPCAsyncWait(lua_State *L)
+{
+    CInteractive* ptr = static_cast<CInteractive*>(lua_touserdata(L,lua_upvalueindex(1)));
+    auto tm = boost::chrono::system_clock::now();
+    if (lua_gettop(L) >= 1 && lua_isinteger(L, 1))
+    {
+        tm += boost::chrono::milliseconds(lua_tointeger(L, 1));
+    }
+    else
+    {
+        tm += boost::chrono::milliseconds(1);
+    }
+
+    int nWork = 0;
+    boost::unique_lock<boost::mutex> lock(ptr->mtx);
+    while (true)
+    {
+        while(ptr->nRead != ptr->nWrite)
+        {
+            auto& resp = ptr->vecAsyncResp[ptr->nRead % nMaxRespSize];
+            uint64 nNonce = resp.first;
+            Value& jsonRspRet = resp.second;
+            auto it = ptr->mapAsyncLuaState.find(nNonce);
+            if (it != ptr->mapAsyncLuaState.end())
+            {
+                lua_State* pState = it->second;
+                do
+                {
+                    if (jsonRspRet.type() != Value_type::obj_type)
+                    {
+                        L_Error(pState, -32603, "invalid replay");
+                        break;
+                    }
+
+                    Object reply = jsonRspRet.get_obj();
+                    const Value& error = find_value(reply, "error");
+                    if (error.type() == obj_type)
+                    {
+                        const Value& code = find_value(error.get_obj(),"code");
+                        const Value& message = find_value(error.get_obj(),"message");
+                        if (code.type() != int_type || message.type() != str_type)
+                        {
+                            L_Error(pState, -32603, "invalid replay");
+                            break;
+                        }
+                        L_Error(pState, code.get_int(), message.get_str());
+                        break;
+                    }
+                
+                    lua_pushinteger(pState, 0);
+                    L_JsonDecode(pState, find_value(reply, "result"));
+
+                } while (false);
+
+                lua_resume(pState, 0, 2);
+
+                ++nWork;
+            }
+
+            ++ptr->nRead;
+        }
+
+        if (!ptr->cond.wait_until(lock, tm, [=]() { return ptr->nRead != ptr->nWrite; }))
+        {
+            // timeout
+            break;
+        }
+    }
+
+    lua_pushinteger(L, nWork);
+    return 1;
+}
+
+int CInteractive::L_Sleep(lua_State *L)
+{
+    int ms = (lua_gettop(L) >= 1) ? lua_tointeger(L, 1) : 1;
+    this_thread::sleep_for(chrono::milliseconds(ms));
+    return 0;
+}
+
+int CInteractive::L_Now(lua_State *L)
+{
+    auto now = chrono::system_clock::now();
+    lua_pushinteger(L, chrono::duration_cast<chrono::milliseconds>(now.time_since_epoch()).count());
+    return 1;
+}
+
 void CInteractive::LoadCFunc()
 {
     lua_settop(luaState,0);
 
-    lua_pushlightuserdata(luaState,pRPCClient);
+    lua_pushlightuserdata(luaState, this);
     lua_pushcclosure(luaState,CInteractive::L_RPCCall,1);
     lua_setglobal(luaState,"rpccall");
 
-    lua_pushlightuserdata(luaState,pRPCClient);
+    lua_pushlightuserdata(luaState, this);
     lua_pushcclosure(luaState,CInteractive::L_RPCJson,1);
     lua_setglobal(luaState,"rpcjson");
+
+    lua_pushlightuserdata(luaState, this);
+    lua_pushcclosure(luaState,CInteractive::L_RPCAsyncCall,1);
+    lua_setglobal(luaState,"rpcasynccall");
+
+    lua_pushlightuserdata(luaState, this);
+    lua_pushcclosure(luaState,CInteractive::L_RPCAsyncWait,1);
+    lua_setglobal(luaState,"rpcasyncwait");
+
+    lua_pushcclosure(luaState,CInteractive::L_Sleep,0);
+    lua_setglobal(luaState,"sleep");
+
+    lua_pushcclosure(luaState,CInteractive::L_Now,0);
+    lua_setglobal(luaState,"now");
+}
+
+void CInteractive::RPCAsyncCallback(uint64 nNonce, json_spirit::Value& jsonRspRet)
+{
+    vecAsyncResp[nWrite % nMaxRespSize] = make_pair(nNonce, jsonRspRet);
+    ++nWrite;
+    cond.notify_all();
 }
 
 const string CInteractive::strLuaPrintResult =

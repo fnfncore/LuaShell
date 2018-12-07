@@ -93,7 +93,7 @@ bool CLuaShellEntry::InitializeService()
         return false;
     }
 
-    CInteractive *pInteractive = new CInteractive();
+    CInteractive *pInteractive = new CInteractive(lsConfig.vecCommand.size() == 0);
     if (!pInteractive || !walleveDocker.Attach(pInteractive))
     {
         delete pInteractive;
@@ -143,7 +143,7 @@ path CLuaShellEntry::GetDefaultDataDir()
     {
         pathRet = path(pszHome);
     }
-#ifdef MAC_OSX
+#ifdef __APPLE__
     // Mac
     pathRet /= "Library/Application Support";
     create_directory(pathRet);
