@@ -494,13 +494,13 @@ function rpc.call(method, ...)
   rpchost, rpcport = "", 0
   if fn then
     if ismain then
-      print("rpccall...", "host:" .. tostring(host), "port:" .. tostring(port), method, ...)
-      local syncall = function (m, d) return rpccall(m, d, host, port) end
-      return fn(syncall, ...)
+      -- print("rpccall...", "host:" .. tostring(host), "port:" .. tostring(port), method, ...)
+      local synccall = function (m, d) return rpccall(m, d, host, port) end
+      return fn(synccall, ...)
     else
-      print("rpcasyncall...", "host:" .. tostring(host), "port:" .. tostring(port), ...)
-      local asyncall = function (m, d) return rpcasyncall(cononce[co], m, d, host, port) end
-      return fn(asyncall, ...)
+      -- print("rpcasynccall...", "host:" .. tostring(host), "port:" .. tostring(port), ...)
+      local asynccall = function (m, d) return rpcasynccall(cononce[co], m, d, host, port) end
+      return fn(asynccall, ...)
     end
   end
 end

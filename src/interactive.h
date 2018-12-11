@@ -34,11 +34,11 @@ protected:
         return dynamic_cast<const CLuaShellConfig*>(walleve::IWalleveBase::WalleveConfig());
     }
     void LoadCFunc();
-    void RPCAsynCallback(uint64 nNonce, json_spirit::Value& jsonRspRet);
+    void RPCAsyncCallback(uint64 nNonce, json_spirit::Value& jsonRspRet);
     static int L_Error(lua_State *L,int errcode,const std::string& strMsg = "");
     static int L_RPCCall(lua_State *L); 
     static int L_RPCJson(lua_State *L); 
-    static int L_RPCAsynCall(lua_State *L);
+    static int L_RPCAsyncCall(lua_State *L);
     static int L_RPCAsyncWait(lua_State *L);
     static int L_Sleep(lua_State *L);
     static int L_Now(lua_State *L);

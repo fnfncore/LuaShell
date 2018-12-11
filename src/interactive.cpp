@@ -341,7 +341,7 @@ int CInteractive::L_RPCJson(lua_State *L)
     return 2;    
 }
 
-int CInteractive::L_RPCAsynCall(lua_State *L)
+int CInteractive::L_RPCAsyncCall(lua_State *L)
 {
     CInteractive* ptr = static_cast<CInteractive*>(lua_touserdata(L,lua_upvalueindex(1)));
     if (lua_gettop(L) < 3 || !lua_isinteger(L, 1) || !lua_isstring(L, 2) || !lua_istable(L, 3))
@@ -368,7 +368,7 @@ int CInteractive::L_RPCAsynCall(lua_State *L)
     
     uint64 nNonce = lua_tointeger(L, 1);
     if (!ptr->pRPCClient->CallAsyncRPC(nNonce, lua_tostring(L,2),
-            param.get_obj(), bind(&CInteractive::RPCAsynCallback, ptr, _1, _2),
+            param.get_obj(), bind(&CInteractive::RPCAsyncCallback, ptr, _1, _2),
             strHost,nPort))
     {
         return L_Error(L,-32603,"rpc failed");
@@ -480,8 +480,8 @@ void CInteractive::LoadCFunc()
     lua_setglobal(luaState,"rpcjson");
 
     lua_pushlightuserdata(luaState, this);
-    lua_pushcclosure(luaState,CInteractive::L_RPCAsynCall,1);
-    lua_setglobal(luaState,"rpcasyncall");
+    lua_pushcclosure(luaState,CInteractive::L_RPCAsyncCall,1);
+    lua_setglobal(luaState,"rpcasynccall");
 
     lua_pushlightuserdata(luaState, this);
     lua_pushcclosure(luaState,CInteractive::L_RPCAsyncWait,1);
@@ -494,7 +494,7 @@ void CInteractive::LoadCFunc()
     lua_setglobal(luaState,"now");
 }
 
-void CInteractive::RPCAsynCallback(uint64 nNonce, json_spirit::Value& jsonRspRet)
+void CInteractive::RPCAsyncCallback(uint64 nNonce, json_spirit::Value& jsonRspRet)
 {
     vecAsyncResp[nWrite % nMaxRespSize] = make_pair(nNonce, jsonRspRet);
     ++nWrite;

@@ -65,11 +65,11 @@ bool CRPCClient::HandleEvent(CWalleveEventHttpGetRsp& eventHttpGetRsp)
     }
     else
     {
-        auto it = mapAsynCallback.find(nNonce);
-        if (it != mapAsynCallback.end())
+        auto it = mapAsyncCallback.find(nNonce);
+        if (it != mapAsyncCallback.end())
         {
             it->second(nNonce, valReply);
-            mapAsynCallback.erase(it);
+            mapAsyncCallback.erase(it);
         }
         return ret;
     }
@@ -97,7 +97,7 @@ bool CRPCClient::CallRPC(const string& strMethod,const Object& params,Object& js
 }
 
 bool CRPCClient::CallAsyncRPC(uint64 nNonce, const std::string& strMethod,const json_spirit::Object& params,
-    RespAsynCallback callback, const string strHost, const int nPort)
+    RespAsyncCallback callback, const string strHost, const int nPort)
 {
     try
     {
@@ -107,7 +107,7 @@ bool CRPCClient::CallAsyncRPC(uint64 nNonce, const std::string& strMethod,const 
         request.push_back(Pair("id",nNonce));
         if (GetResponse(nNonce,request,strHost,nPort))
         {
-            mapAsynCallback[nNonce] = callback;
+            mapAsyncCallback[nNonce] = callback;
             return true;
         }
     }
