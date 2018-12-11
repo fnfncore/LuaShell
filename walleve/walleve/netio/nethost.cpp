@@ -4,6 +4,7 @@
 
 #include "nethost.h"
 #include <sstream>
+#include <iostream>
 
 using namespace std;
 using namespace walleve;

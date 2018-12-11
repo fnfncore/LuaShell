@@ -15,9 +15,14 @@ namespace luashell
 class CRPCClient : public walleve::IIOModule, virtual public walleve::CWalleveHttpEventListener
 {
 public:
+    typedef std::function<void(uint64, json_spirit::Value&)> RespAsynCallback;
+public:
     CRPCClient();
     ~CRPCClient();
-    bool CallRPC(const std::string& strMethod,const json_spirit::Object& params,json_spirit::Object& jsonRspRet);
+    bool CallRPC(const std::string& strMethod,const json_spirit::Object& params,
+        json_spirit::Object& jsonRspRet, const std::string strHost = "", const int nPort = 0);
+    bool CallAsyncRPC(uint64 nNonce, const std::string& strMethod,const json_spirit::Object& params,
+        RespAsynCallback callback, const std::string strHost = "", const int nPort = 0);
     bool HandleEvent(walleve::CWalleveEventHttpGetRsp& eventHttpGetRsp);
 protected:
     bool WalleveHandleInitialize();
@@ -26,11 +31,12 @@ protected:
     {
         return dynamic_cast<const CLuaShellConfig*>(walleve::IWalleveBase::WalleveConfig());
     }
-    bool GetResponse(uint64 nNonce,json_spirit::Object& jsonReq);
+    bool GetResponse(uint64 nNonce,json_spirit::Object& jsonReq, const std::string strHost = "", const int nPort = 0);
 protected:
     walleve::IIOProc *pHttpGet;
     walleve::CIOCompletion ioComplt;
     json_spirit::Object jsonRsp; 
+    std::map<uint64, RespAsynCallback> mapAsynCallback;
 };
 
 } // luashell

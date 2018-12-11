@@ -4,7 +4,7 @@
 
 local rpc = { _version = "0.1" }
 
-local function makedelegateparam(delegate,owner)
+local function makedelegateparam(delegate, owner)
   if type(delegate) ~= "string" then
     error("expected delegate of type string, got " .. type(delegate))
   end
@@ -15,36 +15,36 @@ local function makedelegateparam(delegate,owner)
            ["delegate"] = { ["delegate"] = delegate, ["owner"] = owner } }
 end
 
-local function makeforkparam(redeem,fork)
+local function makeforkparam(redeem, fork)
   if type(redeem) ~= "string" then
     error("expected redeem of type string, got " .. type(redeem))
   end
   if type(fork) ~= "string" then
     error("expected fork of type string, got " .. type(fork))
   end
-  return { ["type"] = "fork",
+  return { ["type"] = "fork", 
            ["fork"] = { ["redeem"] = redeem, ["fork"] = fork } }
 end
 
-local function makemintparam(mint,spent)
+local function makemintparam(mint, spent)
   if type(mint) ~= "string" then
     error("expected mint of type string, got " .. type(mint))
   end
   if type(spent) ~= "string" then
     error("expected spent of type string, got " .. type(spent))
   end
-  return { ["type"] = "mint",
+  return { ["type"] = "mint", 
            ["mint"] = { ["mint"] = mint, ["spent"] = spent } }
 end
 
-local function makemultisigparam(required,pubkeys)
+local function makemultisigparam(required, pubkeys)
   if type(required) ~= "number" then
     error("expected required of type number, got " .. type(required))
   end
   if type(pubkeys) ~= "table" then
     error("expected pubkeys of type table, got " .. type(pubkeys))
   end
-  for k,v in pairs(pubkeys) do
+  for k, v in pairs(pubkeys) do
     if type(k) ~= "number" then
       error("expected idx of type number, got " .. type(k))
     end
@@ -52,11 +52,11 @@ local function makemultisigparam(required,pubkeys)
       error("expected key of type string, got " .. type(v))
     end
   end
-  return { ["type"] = "multisig",
+  return { ["type"] = "multisig", 
            ["multisig"] = { ["required"] = required, ["pubkeys"] = pubkeys } }
 end
 
-local function makeweightedparam(required,weighted)
+local function makeweightedparam(required, weighted)
   if type(required) ~= "number" then
     error("expected required of type number, got " .. type(required))
   end
@@ -65,136 +65,138 @@ local function makeweightedparam(required,weighted)
   end
 
   local pubkeys = {}
-  for k,v in pairs(weighted) do
+  for k, v in pairs(weighted) do
     if type(k) ~= "string" then
       error("expected key of type string, got " .. type(k))
     end
     if type(v) ~= "number" then
       error("expected weight of type number, got " .. type(v))
     end
-    table.insert(pubkeys,{ ["key"] = k, ["weight"] = v })
+    table.insert(pubkeys, { ["key"] = k, ["weight"] = v })
   end
-  return { ["type"] = "weighted",
+  return { ["type"] = "weighted", 
            ["weighted"] = { ["required"] = required, ["pubkeys"] = pubkeys } }
 end
 
 local maketemplateparam = {
-  [ "delegate" ] = makedelegateparam,
-  [ "fork"     ] = makeforkparam,
-  [ "mint"     ] = makemintparam,
-  [ "multisig" ] = makemultisigparam,
+  [ "delegate" ] = makedelegateparam, 
+  [ "fork"     ] = makeforkparam, 
+  [ "mint"     ] = makemintparam, 
+  [ "multisig" ] = makemultisigparam, 
   [ "weighted" ] = makeweightedparam
 }
 
 
+local impl = {
+
 -- System
 
-function rpc.help(command)
+help = function(fn, command)
   if type(command) ~= "string" then
-    return rpccall("help",{})
+    return fn("help", {})
   end
-  return rpccall("help",{ ["command"] = command })
-end
+  return fn("help", { ["command"] = command })
+end, 
 
-function rpc.stop()
-  return rpccall("stop",{})
-end
+stop = function(fn)
+  return fn("stop", {})
+end, 
 
-function rpc.version()
-  return rpccall("version",{})
-end
+version = function(fn)
+  return fn("version", {})
+end, 
 
 -- Network
 
-function rpc.getpeercount()
-  return rpccall("getpeercount",{})
-end
+getpeercount = function(fn)
+  return fn("getpeercount", {})
+end, 
 
-function rpc.listpeer()
-  return rpccall("listpeer",{})
-end
+listpeer = function(fn)
+  return fn("listpeer", {})
+end, 
 
-function rpc.addnode(node)
+addnode = function(fn, node)
   if type(node) ~= "string" then
     error("expected node of type string, got " .. type(node))
   end
-  return rpccall("addnode",{ ["node"] = node })
-end
+  return fn("addnode", { ["node"] = node })
+end, 
 
-function rpc.removenode(node)
+removenode = function(fn, node)
   if type(node) ~= "string" then
     error("expected node of type string, got " .. type(node))
   end
-  return rpccall("removenode",{ ["node"] = node })
-end
+  return fn("removenode", { ["node"] = node })
+end, 
 
 -- Worldline & TxPool
  
-function rpc.getforkcount()
-  return rpccall("getforkcount",{})
-end
+getforkcount = function(fn)
+  return fn("getforkcount", {})
+end, 
 
-function rpc.listfork()
-  return rpccall("listfork",{})
-end
+listfork = function(fn)
+  return fn("listfork", {})
+end, 
 
-function rpc.getgenealogy(fork)
+getgenealogy = function(fn, fork)
   if type(fork) ~= "string" then
-    return rpccall("getgenealogy",{})
+    return fn("getgenealogy", {})
   end
-  return rpccall("getgenealogy",{ ["fork"] = fork })
-end
+  return fn("getgenealogy", { ["fork"] = fork })
+end, 
 
-function rpc.getforkheight(fork)
+getforkheight = function(fn, fork)
   if type(fork) ~= "string" then
-    return rpccall("getforkheight",{})
+    return fn("getforkheight", {})
   end
-  return rpccall("getforkheight",{ ["fork"] = fork })
-end
+  return fn("getforkheight", { ["fork"] = fork })
+end, 
 
-function rpc.getblockcount(fork)
+getblockcount = function(fn, fork)
   if type(fork) ~= "string" then
-    return rpccall("getblockcount",{})
+    return fn("getblockcount", {})
   end
-  return rpccall("getblockcount",{ ["fork"] = fork })
-end
+  return fn("getblockcount", { ["fork"] = fork })
+end, 
 
-function rpc.getblockhash(height,fork)
+getblockhash = function(fn, height, fork)
   if type(height) ~= "number" then
     error("expected height of type number, got " .. type(height))
   end
   if type(fork) ~= "string" then
-    return rpccall("getblockhash",{ ["height"] = height })
+    return fn("getblockhash", { ["height"] = height })
   end
-  return rpccall("getblockhash",{ ["height"] = height,["fork"] = fork })
-end
+  return fn("getblockhash", { ["height"] = height, ["fork"] = fork })
+end, 
 
-function rpc.getblocklocation(block)
+getblocklocation = function(fn, block)
   if type(block) ~= "string" then
     error("expected block of type string, got " .. type(block))
   end
-  return rpccall("getblocklocation",{ ["block"] = block })
-end
+  return fn("getblocklocation", { ["block"] = block })
+end, 
 
-function rpc.getblock(block)
+getblock = function(fn, block)
   if type(block) ~= "string" then
     error("expected block of type string, got " .. type(block))
   end
-  return rpccall("getblock",{ ["block"] = block })
-end
+  return fn("getblock", { ["block"] = block })
+end, 
 
-function rpc.gettxpool(fork,detail)
+gettxpool = function(fn, fork, detail)
   detail = detail or false
   if type(detail) ~= "boolean" then
     error("expected detail of type boolean, got " .. type(detail))
   end
   if type(fork) ~= "string" then
-    return rpccall("gettxpool",{ ["detail"] = detail })
+    return fn("gettxpool", { ["detail"] = detail })
   end
-  return rpccall("gettxpool",{ ["fork"] = fork,["detail"] = detail })
-end
+  return fn("gettxpool", { ["fork"] = fork, ["detail"] = detail })
+end, 
 
-function rpc.gettransaction(txid,serialized)
+gettransaction = function(fn, txid, serialized)
   serialized = serialized or false
   if type(serialized) ~= "boolean" then
     error("expected serialized of type boolean, got " .. type(serialized))
@@ -202,30 +204,30 @@ function rpc.gettransaction(txid,serialized)
   if type(txid) ~= "string" then
     error("expected txid of type string, got " .. type(txid))
   end
-  return rpccall("gettransaction",{ ["txid"] = txid,["serialized"] = serialized })
-end
+  return fn("gettransaction", { ["txid"] = txid, ["serialized"] = serialized })
+end, 
 
-function rpc.sendtransaction(txdata)
+sendtransaction = function(fn, txdata)
   if type(txdata) ~= "string" then
     error("expected txdata of type string, got " .. type(txdata))
   end
-  return rpccall("sendtransaction",{ ["txdata"] = txdata })
-end
+  return fn("sendtransaction", { ["txdata"] = txdata })
+end, 
 
 -- Wallet
 
-function rpc.listkey()
-  return rpccall("listkey",{})
-end
+listkey = function(fn)
+  return fn("listkey", {})
+end, 
 
-function rpc.getnewkey(passphrase)
+getnewkey = function(fn, passphrase)
   if type(passphrase) ~= "string" then
     error("expected passphrase of type string, got " .. type(passphrase))
   end
-  return rpccall("getnewkey",{ ["passphrase"] = passphrase })
-end
+  return fn("getnewkey", { ["passphrase"] = passphrase })
+end, 
 
-function rpc.encryptkey(pubkey, passphrase, oldpassphrase)
+encryptkey = function(fn, pubkey, passphrase, oldpassphrase)
   if type(pubkey) ~= "string" then
     error("expected pubkey of type string, got " .. type(pubkey))
   end
@@ -235,37 +237,37 @@ function rpc.encryptkey(pubkey, passphrase, oldpassphrase)
   if type(oldpassphrase) ~= "string" then
     error("expected old passphrase of type string, got " .. type(oldpassphrase))
   end
-  return rpccall("encryptkey",{ ["pubkey"] = pubkey, ["passphrase"] = passphrase, ["oldpassphrase"] = oldpassphrase })
-end
+  return fn("encryptkey", { ["pubkey"] = pubkey, ["passphrase"] = passphrase, ["oldpassphrase"] = oldpassphrase })
+end, 
 
-function rpc.lockkey(pubkey)
+lockkey = function(fn, pubkey)
   if type(pubkey) ~= "string" then
     error("expected pubkey of type string, got " .. type(pubkey))
   end
-  return rpccall("lockkey",{ ["pubkey"] = pubkey })
-end
+  return fn("lockkey", { ["pubkey"] = pubkey })
+end, 
 
-function rpc.unlockkey(pubkey, passphrase)
+unlockkey = function(fn, pubkey, passphrase)
   if type(pubkey) ~= "string" then
     error("expected pubkey of type string, got " .. type(pubkey))
   end
   if type(passphrase) ~= "string" then
     error("expected passphrase of type string, got " .. type(passphrase))
   end
-  return rpccall("unlockkey",{ ["pubkey"] = pubkey, ["passphrase"] = passphrase })
-end
+  return fn("unlockkey", { ["pubkey"] = pubkey, ["passphrase"] = passphrase })
+end, 
 
-function rpc.importprivkey(privkey, passphrase)
+importprivkey = function(fn, privkey, passphrase)
   if type(privkey) ~= "string" then
     error("expected privkey of type string, got " .. type(privkey))
   end
   if type(passphrase) ~= "string" then
     error("expected passphrase of type string, got " .. type(passphrase))
   end
-  return rpccall("importprivkey",{ ["privkey"] = privkey, ["passphrase"] = passphrase })
-end
+  return fn("importprivkey", { ["privkey"] = privkey, ["passphrase"] = passphrase })
+end, 
 
-function rpc.addnewtemplate(ttype,...)
+addnewtemplate = function(fn, ttype, ...)
   if type(ttype) ~= "string" then
     error("expected ttype of type string, got " .. type(ttype))
   end
@@ -273,28 +275,28 @@ function rpc.addnewtemplate(ttype,...)
     error("unknown template type " .. ttype)
   end
 
-  return rpccall("addnewtemplate",maketemplateparam[ttype](...))
-end
+  return fn("addnewtemplate", maketemplateparam[ttype](...))
+end, 
 
-function rpc.listaddress()
-  return rpccall("listaddress",{})
-end
+listaddress = function(fn)
+  return fn("listaddress", {})
+end, 
 
-function rpc.validateaddress(address)
+validateaddress = function(fn, address)
   if type(address) ~= "string" then
     error("expected address of type string, got " .. type(address))
   end
-  return rpccall("validateaddress",{ ["address"] = address })
-end
+  return fn("validateaddress", { ["address"] = address })
+end, 
 
-function rpc.resyncwallet(address)
+resyncwallet = function(fn, address)
   if address and type(address) ~= "string" then
     error("expected address of type string, got " .. type(address))
   end
-  return rpccall("resyncwallet",{ ["address"] = address })
-end
+  return fn("resyncwallet", { ["address"] = address })
+end, 
 
-function rpc.getbalance(address, fork)
+getbalance = function(fn, address, fork)
   if fork and type(fork) ~= "string" then
     error("expected fork of type string, got " .. type(fork))
   end
@@ -302,20 +304,20 @@ function rpc.getbalance(address, fork)
     error("expected address of type string, got " .. type(address))
   end
 
-  return rpccall("getbalance",{ ["fork"] = fork,["address"] = address })
-end
+  return fn("getbalance", { ["fork"] = fork, ["address"] = address })
+end, 
 
-function rpc.listtransaction(count,offset)
+listtransaction = function(fn, count, offset)
   if count and type(count) ~= "number" then
     error("expected count of type number, got " .. type(count))
   end
   if offset and type(offset) ~= "number" then
     error("expected offset of type number, got " .. type(offset))
   end
-  return rpccall("listtransaction",{ ["count"] = count, ["offset"] = offset })
-end
+  return fn("listtransaction", { ["count"] = count, ["offset"] = offset })
+end, 
 
-function rpc.sendfrom(from,to,amount,txfee,fork,data)
+sendfrom = function(fn, from, to, amount, txfee, fork, data)
   if type(from) ~= "string" then
     error("expected from of type string, got " .. type(from))
   end
@@ -334,11 +336,11 @@ function rpc.sendfrom(from,to,amount,txfee,fork,data)
   if data and type(data) ~= "string" then
     error("expected data of type string, got " .. type(data))
   end
-  return rpccall("sendfrom",{ ["from"] = from, ["to"] = to, ["amount"] = amount,
+  return fn("sendfrom", { ["from"] = from, ["to"] = to, ["amount"] = amount, 
                               ["txfee"] = txfee, ["fork"] = fork, ["data"] = data})
-end
+end, 
 
-function rpc.createtransaction(from,to,amount,txfee,fork,data)
+createtransaction = function(fn, from, to, amount, txfee, fork, data)
   if type(from) ~= "string" then
     error("expected from of type string, got " .. type(from))
   end
@@ -357,18 +359,18 @@ function rpc.createtransaction(from,to,amount,txfee,fork,data)
   if data and type(data) ~= "string" then
     error("expected data of type string, got " .. type(data))
   end
-  return rpccall("createtransaction",{ ["from"] = from, ["to"] = to, ["amount"] = amount,
+  return fn("createtransaction", { ["from"] = from, ["to"] = to, ["amount"] = amount, 
                                        ["txfee"] = txfee, ["fork"] = fork, ["data"] = data})
-end
+end, 
 
-function rpc.signtransaction(txdata)
+signtransaction = function(fn, txdata)
   if type(txdata) ~= "string" then
     error("expected txdata of type string, got " .. type(txdata))
   end
-  return rpccall("signtransaction",{ ["txdata"] = txdata })
-end
+  return fn("signtransaction", { ["txdata"] = txdata })
+end, 
 
-function rpc.makeorigin(prev,owner,amount,name,symbol,reward,isolated,private,enclosed)
+makeorigin = function(fn, prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
   if type(prev) ~= "string" then
     error("expected prev of type string, got " .. type(prev))
   end
@@ -396,33 +398,33 @@ function rpc.makeorigin(prev,owner,amount,name,symbol,reward,isolated,private,en
   if enclosed and type(enclosed) ~= "boolean" then
     error("expected enclosed of type boolean, got " .. type(enclosed))
   end
-  return rpccall("makeorigin",{ ["prev"] = prev, ["owner"] = owner, ["amount"] = amount,
-                                ["name"] = name, ["symbol"] = symbol, ["reward"] = reward,
+  return fn("makeorigin", { ["prev"] = prev, ["owner"] = owner, ["amount"] = amount, 
+                                ["name"] = name, ["symbol"] = symbol, ["reward"] = reward, 
                                 ["isolated"] = isolated, ["private"] = private, 
                                 ["enclosed"] = enclosed })
-end
+end, 
 
 -- Util
 
-function rpc.makekeypair()
-  return rpccall("makekeypair",{})
-end
+makekeypair = function(fn)
+  return fn("makekeypair", {})
+end, 
 
-function rpc.getpubkeyaddress(pubkey)
+getpubkeyaddress = function(fn, pubkey)
   if type(pubkey) ~= "string" then
     error("expected pubkey of type string, got " .. type(pubkey))
   end
-  return rpccall("getpubkeyaddress",{ ["pubkey"] = pubkey })
-end
+  return fn("getpubkeyaddress", { ["pubkey"] = pubkey })
+end, 
 
-function rpc.gettemplateaddress(tid)
+gettemplateaddress = function(fn, tid)
   if type(tid) ~= "string" then
     error("expected tid of type string, got " .. type(tid))
   end
-  return rpccall("gettemplateaddress",{ ["tid"] = tid })
-end
+  return fn("gettemplateaddress", { ["tid"] = tid })
+end, 
 
-function rpc.maketemplate(ttype,...)
+maketemplate = function(fn, ttype, ...)
   if type(ttype) ~= "string" then
     error("expected ttype of type string, got " .. type(ttype))
   end
@@ -430,14 +432,133 @@ function rpc.maketemplate(ttype,...)
     error("unknown template type " .. ttype)
   end
 
-  return rpccall("maketemplate",maketemplateparam[ttype](...))
-end
+  return fn("maketemplate", maketemplateparam[ttype](...))
+end, 
 
-function rpc.decodetransaction(txdata)
+decodetransaction = function(fn, txdata)
   if type(txdata) ~= "string" then
     error("expected txdata of type string, got " .. type(txdata))
   end
-  return rpccall("decodetransaction",{ ["txdata"] = txdata })
+  return fn("decodetransaction", { ["txdata"] = txdata })
+end, 
+
+}
+
+local nonce = 1
+local usednonce = {}
+local idlenonce = {}
+local cononce = {}
+local function getnonce()
+  local n
+  if #rpc.idlenonce > 0 then
+    n = idlenonce[#idlenonce]
+    table.remove(idlenonce)
+  else
+    n = nonce
+    nonce = nonce + 1
+  end
+  return n
 end
+
+local function releasenonce(nonce)
+  for i, v in ipairs(usednonce) do
+    if v == nonce then
+      table.remove(usednonce, i)
+      break
+    end
+  end
+
+  table.insert(idlenonce, nonce)
+end
+
+function rpc.asyncstart(fn, ...)
+  local n = getnonce()
+  local co
+  co = coroutine.create(function()
+    fn()
+    releasenonce(cononce[co])
+    cononce[co] = nil
+  end)
+
+  cononce[co] = n
+  coroutine.resume(co, ...)
+end
+
+local rpchost, rpcport = "", 0
+rpc.genesis = "c8f10736fb9b03a2d224c9d79b60ccc156b4bf9c28072fb332d0ea5fc104e085"
+
+function rpc.call(method, ...)
+  local co, ismain = coroutine.running()
+  local fn = impl[method]
+  local host, port = rpchost, rpcport
+  rpchost, rpcport = "", 0
+  if fn then
+    if ismain then
+      print("rpccall...", "host:" .. tostring(host), "port:" .. tostring(port), method, ...)
+      local syncall = function (m, d) return rpccall(m, d, host, port) end
+      return fn(syncall, ...)
+    else
+      print("rpcasyncall...", "host:" .. tostring(host), "port:" .. tostring(port), ...)
+      local asyncall = function (m, d) return rpcasyncall(cononce[co], m, d, host, port) end
+      return fn(asyncall, ...)
+    end
+  end
+end
+
+function rpc:sethost(host, port)
+  if type(host) == "string" then
+    if host == "localhost" then
+      rpchost = "127.0.0.1"
+    else
+      rpchost = host
+    end
+  end
+
+  if type(port) == "string" then
+    port = tonumber(port)
+  end
+  if type(port) == "number" then
+    rpcport = port
+  end
+  return self
+end
+
+function rpc.createfork(host, port, prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
+  err, ret = rpc:sethost(host, port).makeorigin(prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
+  if err ~= 0 then
+    return err, ret
+  end
+  local hash = ret["hash"]
+  local hex = ret["hex"]
+
+  err, ret = rpc:sethost(host, port).addnewtemplate("fork", owner, hash)
+  if err ~= 0 then
+    return err, ret
+  end
+  
+  err, ret = rpc:sethost(host, port).sendfrom(owner, ret, amount, nil, rpc.genesis, hex)
+  if err ~= 0 then
+    return err, ret
+  end
+
+  return 0, "", hash, ret
+end
+
+function rpc.createdelegate(host, port, delegate, owner, password, amount)
+  err, ret = rpc:sethost(host, port).addnewtemplate("delegate", delegate, owner)
+  if err ~= 0 then
+    return err, ret
+  else
+    rpc:sethost(host, port).unlockkey(owner, password)
+    return rpc:sethost(host, port).sendfrom(owner, ret, amount)
+  end
+end
+
+setmetatable(rpc, { __index = function(t, k) 
+  return function(...)
+    return t.call(k, ...)
+  end
+end})
+
 
 return rpc

@@ -387,11 +387,12 @@ bool CHttpGet::HandleEvent(CWalleveEventHttpGet& eventGet)
     CWalleveHttpGet& httpGet = eventGet.data;
 
     uint64 nNonce = eventGet.nNonce;
+    CNetHost host(httpGet.mapHeader["host"],httpGet.strProtocol == "https" ? 443 : 80);
     for (multimap<uint64,CHttpGetClient*>::iterator it = mapGetClient.lower_bound(nNonce);
          it != mapGetClient.upper_bound(nNonce);++it)
     {
         CHttpGetClient *pGetClient = (*it).second;
-        if (httpGet.strIOModule == pGetClient->GetIOModule())
+        if (httpGet.strIOModule == pGetClient->GetIOModule() && host == pGetClient->GetHost())
         {
             if (pGetClient->IsIdle())
             {
@@ -406,7 +407,6 @@ bool CHttpGet::HandleEvent(CWalleveEventHttpGet& eventGet)
         }
     }
 
-    CNetHost host(httpGet.mapHeader["host"],httpGet.strProtocol == "https" ? 443 : 80);
     tcp::endpoint ep = host.ToEndPoint();
     if (ep != tcp::endpoint())
     {
