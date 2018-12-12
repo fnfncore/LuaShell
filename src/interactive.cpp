@@ -10,6 +10,7 @@
 
 #include <numeric>
 #include <boost/filesystem.hpp>
+#include <thread>
 
 using namespace std;
 using namespace luashell;
