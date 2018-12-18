@@ -25,7 +25,11 @@ function node.dbpport(n)
 end
 
 function node.dbname(n)
-  return "dpos" .. n
+  if n == 0 then
+    return "multiverse"
+  else
+    return "dpos" .. n
+  end
 end
 
 function node.datadir(n)

@@ -358,13 +358,13 @@ int CInteractive::L_RPCAsyncCall(lua_State *L)
 
     string strHost = "";
     int nPort = 0;
-    if (lua_gettop(L) >= 3 && lua_isstring(L, 3))
+    if (lua_gettop(L) >= 4 && lua_isstring(L, 4))
     {
-        strHost = lua_tostring(L, 3);
+        strHost = lua_tostring(L, 4);
     }
-    if (lua_gettop(L) >= 4 && lua_isinteger(L, 4))
+    if (lua_gettop(L) >= 5 && lua_isinteger(L, 5))
     {
-        nPort = lua_tointeger(L, 4);
+        nPort = lua_tointeger(L, 5);
     }
     
     uint64 nNonce = lua_tointeger(L, 1);

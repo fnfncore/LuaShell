@@ -450,7 +450,7 @@ local idlenonce = {}
 local cononce = {}
 local function getnonce()
   local n
-  if #rpc.idlenonce > 0 then
+  if #idlenonce > 0 then
     n = idlenonce[#idlenonce]
     table.remove(idlenonce)
   else
@@ -474,8 +474,8 @@ end
 function rpc.asyncstart(fn, ...)
   local n = getnonce()
   local co
-  co = coroutine.create(function()
-    fn()
+  co = coroutine.create(function(...)
+    fn(...)
     releasenonce(cononce[co])
     cononce[co] = nil
   end)
@@ -487,56 +487,51 @@ end
 local rpchost, rpcport = "", 0
 rpc.genesis = "c8f10736fb9b03a2d224c9d79b60ccc156b4bf9c28072fb332d0ea5fc104e085"
 
-function rpc.call(method, ...)
+function rpc.callhost(method, host, port, ...)
+  if type(host) ~= "string" or host == "localhost" then
+      host = "127.0.0.1"
+  end
+
+  if type(port) == "string" then
+    port = tonumber(port)
+  end
+  if type(port) ~= "number" or port <= 0 or port > 65535 then
+    port = 6811
+  end
+
   local co, ismain = coroutine.running()
   local fn = impl[method]
-  local host, port = rpchost, rpcport
-  rpchost, rpcport = "", 0
   if fn then
     if ismain then
       -- print("rpccall...", "host:" .. tostring(host), "port:" .. tostring(port), method, ...)
       local synccall = function (m, d) return rpccall(m, d, host, port) end
       return fn(synccall, ...)
     else
-      -- print("rpcasynccall...", "host:" .. tostring(host), "port:" .. tostring(port), ...)
+      -- print("rpcasynccall...", "host:" .. tostring(host), "port:" .. tostring(port), method, ...)
       local asynccall = function (m, d) return rpcasynccall(cononce[co], m, d, host, port) end
       return fn(asynccall, ...)
     end
   end
 end
 
-function rpc:sethost(host, port)
-  if type(host) == "string" then
-    if host == "localhost" then
-      rpchost = "127.0.0.1"
-    else
-      rpchost = host
-    end
-  end
-
-  if type(port) == "string" then
-    port = tonumber(port)
-  end
-  if type(port) == "number" then
-    rpcport = port
-  end
-  return self
+function rpc.call(method, ...)
+  return rpc.callhost(method, "127.0.0.1", 6812, ...)
 end
 
 function rpc.createfork(host, port, prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
-  err, ret = rpc:sethost(host, port).makeorigin(prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
+  err, ret = rpc.makeoriginhost(host, port, prev, owner, amount, name, symbol, reward, isolated, private, enclosed)
   if err ~= 0 then
     return err, ret
   end
   local hash = ret["hash"]
   local hex = ret["hex"]
 
-  err, ret = rpc:sethost(host, port).addnewtemplate("fork", owner, hash)
+  err, ret = rpc.addnewtemplatehost(host, port, "fork", owner, hash)
   if err ~= 0 then
     return err, ret
   end
   
-  err, ret = rpc:sethost(host, port).sendfrom(owner, ret, amount, nil, rpc.genesis, hex)
+  err, ret = rpc.sendfromhost(host, port, owner, ret, amount, nil, rpc.genesis, hex)
   if err ~= 0 then
     return err, ret
   end
@@ -545,18 +540,22 @@ function rpc.createfork(host, port, prev, owner, amount, name, symbol, reward, i
 end
 
 function rpc.createdelegate(host, port, delegate, owner, password, amount)
-  err, ret = rpc:sethost(host, port).addnewtemplate("delegate", delegate, owner)
+  err, ret = rpc.addnewtemplatehost(host, port, "delegate", delegate, owner)
   if err ~= 0 then
     return err, ret
   else
-    rpc:sethost(host, port).unlockkey(owner, password)
-    return rpc:sethost(host, port).sendfrom(owner, ret, amount)
+    rpc.unlockkeyhost(host, port, owner, password)
+    return rpc.sendfromhost(host, port, owner, ret, amount)
   end
 end
 
 setmetatable(rpc, { __index = function(t, k) 
   return function(...)
-    return t.call(k, ...)
+    if string.find(k, "host", -4) then
+      return t.callhost(string.sub(k, 1, -5), ...)
+    else
+      return t.call(k, ...)
+    end
   end
 end})
 

@@ -9,14 +9,10 @@ local node = require("node")
 local key = require("key")
 
 local function sendtx(host, port, from, to, fork, count)
-  local host, port = node.rpchost(index), node.rpcport(index)
-  local err, forks = rpc:sethost(host, port).listfork()
-  if err == 0 and forks[to] then
-    for i = 1, 5 do
-      local f = forks[to]["fork"]
-      local fromaddr = key.keypair[from][1]["pubkeyaddr"]
-      local toaddr = key.keypair[to][1]["pubkeyaddr"]
-      rpc:sethost(host, port).sendfrom(fromaddr, toaddr, 0.000001, nil, f)
+  for i = 1, count do
+    local err, ret = rpc.sendfromhost(host, port, from, to, 0.000001, nil, fork)
+    if err ~= 0 then
+      print(ret)
     end
   end
 end
@@ -25,25 +21,40 @@ function txrobot.run(index, count)
   local host, port = node.rpchost(index), node.rpcport(index)
   local from = key.keypair[index][1]["pubkeyaddr"]
   local to = key.keypair[index % 50 + 1][1]["pubkeyaddr"]
-  rpc:sethost(host, port).unlockkey(pubkeyaddr, "123")
+  rpc.unlockkeyhost(host, port, from, "123")
 
-  while running do
-    local err, forks = rpc:sethost(host, port).listfork()
+  local works = 0
+  -- while running do
+    local err, forks = rpc.listforkhost(host, port)
+    print(err, forks, host, port)
     if err == 0 and #forks > 1 then
       local per = count // (#forks - 1)
       local realcount = per * (#forks - 1)
-      for i = 1, #forks do
-        local fork = forks[i]["fork"]
+      works = works + realcount
+      print("begin... " .. os.time())
+      for i, v in ipairs(forks) do
+        local fork = v["fork"]
         if fork ~= rpc.genesis then
-          rpc:asyncstart(sendtx, host, port, from, to, fork, per)
+          for j = 1, 1 do
+            rpc.asyncstart(sendtx, host, port, from, to, fork, 1)
+          end
         end
       end
-      print("wait for work:" .. realcount .. " done:" .. rpcasyncwait(1000))
+      print("begin... " .. os.time())
+      print("wait... " .. realcount)
+      local w = rpcasyncwait(1000)
+      print("completed... " .. w)
+      works = works - w
+      print("remained... " .. works)
+      while works > 5000 and running do
+        w = rpcasyncwait(1000)
+        works = works - w
+        print("remained... " .. works)
+      end
     else
-      print("listfork error")
       sleep(1000)
     end
-  end
+  -- end
 end
 
 return txrobot

@@ -6,6 +6,7 @@ local util = require("util")
 local key = require("key")
 local node = require("node")
 local rpc = require("rpc")
+local txrobot = require("txrobot")
 
 local function getkeys(n)
   local keys = nil
@@ -25,7 +26,7 @@ local function waittx(host, port, tx, tm, confirmed)
   end
   local err, ret = nil, nil
   while running do
-    err, ret = rpc:sethost(host, port).gettransaction(tx)
+    err, ret = rpc.gettransactionhost(host, port, tx)
     if err ~= 0 then
       print("Waiting transaction... " .. tx, err)
       sleep(5000)
@@ -49,30 +50,34 @@ local function createconf(n, keys)
 
   os.execute("mkdir -p " .. dir)
   io.output(dir.. "/multiverse.conf")
-  io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
-  io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+  if n == 0 then
+    io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
+    io.write("blake512key=" .. keys[2]["privkey"] .. "\n")
+  else
+    io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+    io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+  end
   io.write("listen\n")
   io.write("addgroup=" .. rpc.genesis .. "\n")
-  io.write("addnode=127.0.0.1:6811\n")
+  if n ~= 0 then
+    io.write("addnode=127.0.0.1:6811\n")
+  end
   io.write("dbname=" .. node.dbname(n) .. "\n")
   io.write("port=" .. node.port(n) .. "\n")
   io.write("rpcport=" .. node.rpcport(n) .. "\n")
   io.write("dnseedport=" .. node.dnseedport(n) .. "\n")
-  io.write("dbpport=" .. node.dbpport(n) .. "\n")
-  io.write("maxconnections=100\n")
-  io.write("rpcmaxconnections=100\n")
   io.write("dbpport=" .. node.dbpport(n) .. "\n")
   io.flush()
   io.close()
   return true
 end
 
-local function newdpos(first, last)
+local function newdpos(first, last, amount)
   local dpostxs = {}
   for i = first, last do
     local keys = getkeys(i)
     if keys and createconf(i, keys) then
-      rpc:sethost(node.rpchost(i), node.rpcport(i)).stop()
+      rpc.stophost(node.rpchost(i), node.rpcport(i))
       os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. ";" ..
         "create database " .. node.dbname(i) .. ";" ..
         "grant all on " .. node.dbname(i) .. ".* to multiverse@localhost;" ..
@@ -81,34 +86,36 @@ local function newdpos(first, last)
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
         sleep(5000)
-        err, _ = rpc:sethost(node.rpchost(i), node.rpcport(i)).importprivkey(keys[1]["privkey"], "123")
+        print(keys[1]["privkey"])
+        err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
         if err == 0 then
           break
         end
       end
 
-      rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
-      local err, ret = rpc.listfork()
-      if err ~= 0 then
-        print("listfork error:", ret)
-      else
-        for _, v in ipairs(ret) do
-          if v["fork"] ~= rpc.genesis then
-            err, r = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 10000, nil, v["fork"])
-            if err ~= 0 then
-              print("sendfrom error to " .. keys[1]["pubkeyaddr"] .. " on " .. v["fork"] .. ": " .. r)
-            end
-          else
-            err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 20000001)
-            if err ~= 0 then
-              print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
+      if i ~= 0 then
+        rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
+        local err, ret = rpc.listfork()
+        if err ~= 0 then
+          print("listfork error:", ret)
+        else
+          for _, v in ipairs(ret) do
+            if v["fork"] ~= rpc.genesis then
+              err, r = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 10000, nil, v["fork"])
+              if err ~= 0 then
+                print("sendfrom error to " .. keys[1]["pubkeyaddr"] .. " on " .. v["fork"] .. ": " .. r)
+              end
             else
-              dpostxs[i] = ret
+              err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], amount)
+              if err ~= 0 then
+                print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
+              else
+                dpostxs[i] = ret
+              end
             end
           end
         end
       end
-
     end
     sleep(1000)
   end
@@ -117,26 +124,28 @@ end
 
 local function createdelegate(dpostxs, first, last, amount)
   for i = first, last do
-    local tx = dpostxs[i]
-    if tx then
-      if waittx(node.rpchost(i), node.rpcport(i), tx) ~= 0 then
-        return
-      end
+    if i ~= 0 then
+      local tx = dpostxs[i]
+      if tx then
+        if waittx(node.rpchost(i), node.rpcport(i), tx) ~= 0 then
+          return
+        end
 
-      local keys = getkeys(i)
-      err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
-      if err ~= 0 then
-        print("addnewtemplate delegate error", ret)
+        local keys = getkeys(i)
+        err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
+        if err ~= 0 then
+          print("addnewtemplate delegate error", ret)
+        end
       end
     end
   end
 end
 
-local function startdpos(first, last)
+local function rundpos(first, last)
   for i = first, last do
     if util.direxist(node.datadir(i)) then
-      print("multiverse -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
-      os.execute("multiverse -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
+      print("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
+      os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
     else
       print("No dpos " .. i)
     end
@@ -228,11 +237,11 @@ elseif last > 50 then
 end
 
 if op == "new" then
-  local amount = len(args) > 3 and tonumber(args[4]) or 20000000
-  dpostxs = newdpos(first, last)
+  local amount = #args >= 4 and tonumber(args[4]) or 20000000
+  dpostxs = newdpos(first, last, amount + 1)
   createdelegate(dpostxs, first, last, amount)
-elseif op == "start" then
-  startdpos(first, last)
+elseif op == "run" then
+  rundpos(first, last)
 elseif op == "stop" then
   stopdpos(first, last)
 elseif op == "purge" then
@@ -242,11 +251,24 @@ elseif op == "remove" then
 elseif op == "createfork" then
   createfork(first, last)
 elseif op == "createdelegate" then
-  local amount = #args > 3 and tonumber(args[4]) or 20000000
+  local amount = #args >= 4 and tonumber(args[4]) or 20000000
   for i = first, last do
     keys = getkeys(i)
     rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
+elseif op == "txrobotrun" then
+  local count = #args >= 4 and tonumber(args[4]) or 1
+  if first == last then
+    txrobot.run(first, count)
+  else
+    for i = first, last do
+      os.execute("nohup luashell exec txrobotrun " .. i .. " " .. count .. " & > /dev/null 2>&1")
+    end
+  end
+elseif op == "txrobotstop" then
+    for i = first, last do
+      os.execute("ps -ef | grep 'luashell exec txrobotrun " .. i .. "' | grep -v grep | awk '{print $2}' | xargs kill -2")
+    end
 else
   print("Unknown operator " .. op)
   return
