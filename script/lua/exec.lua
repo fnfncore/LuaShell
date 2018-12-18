@@ -40,7 +40,7 @@ local function waittx(host, port, tx, tm, confirmed)
   return err
 end
 
-local function createconf(n, keys)
+local function createconf(n, keys, miner)
   local dir = node.datadir(n)
 
   if util.direxist(dir) then
@@ -53,10 +53,14 @@ local function createconf(n, keys)
   if n == 0 then
     io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
     io.write("blake512key=" .. keys[2]["privkey"] .. "\n")
-  else
+    io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+    io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+  elseif miner then
     io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
     io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
   end
+  io.write("rpcmaxconnections=200\n")
+  io.write("maxconnections=200\n")
   io.write("listen\n")
   io.write("addgroup=" .. rpc.genesis .. "\n")
   if n ~= 0 then
@@ -76,17 +80,16 @@ local function newdpos(first, last, amount)
   local dpostxs = {}
   for i = first, last do
     local keys = getkeys(i)
-    if keys and createconf(i, keys) then
+    if keys and createconf(i, keys, true) then
       rpc.stophost(node.rpchost(i), node.rpcport(i))
       os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. ";" ..
-        "create database " .. node.dbname(i) .. ";" ..
+        "create database " .. node.dbname(i) .. " default charset utf8 collate utf8_general_ci;" ..
         "grant all on " .. node.dbname(i) .. ".* to multiverse@localhost;" ..
         "flush privileges;\"")
       
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
         sleep(5000)
-        print(keys[1]["privkey"])
         err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
         if err == 0 then
           break
@@ -120,6 +123,29 @@ local function newdpos(first, last, amount)
     sleep(1000)
   end
   return dpostxs
+end
+
+local function newwallet(first, last)
+  for i = first, last do
+    local keys = getkeys(i)
+    if keys and createconf(i, keys) then
+      rpc.stophost(node.rpchost(i), node.rpcport(i))
+      os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. ";" ..
+        "create database " .. node.dbname(i) .. " default charset utf8 collate utf8_general_ci;" ..
+        "grant all on " .. node.dbname(i) .. ".* to multiverse@localhost;" ..
+        "flush privileges;\"")
+      
+      os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
+      while running do
+        sleep(5000)
+        err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
+        if err == 0 then
+          break
+        end
+      end
+    end
+    sleep(1000)
+  end
 end
 
 local function createdelegate(dpostxs, first, last, amount)
@@ -240,6 +266,8 @@ if op == "new" then
   local amount = #args >= 4 and tonumber(args[4]) or 20000000
   dpostxs = newdpos(first, last, amount + 1)
   createdelegate(dpostxs, first, last, amount)
+elseif op == "wallet" then
+  newwallet(first, last)
 elseif op == "run" then
   rundpos(first, last)
 elseif op == "stop" then
@@ -268,6 +296,18 @@ elseif op == "txrobotrun" then
 elseif op == "txrobotstop" then
     for i = first, last do
       os.execute("ps -ef | grep 'luashell exec txrobotrun " .. i .. "' | grep -v grep | awk '{print $2}' | xargs kill -2")
+    end
+elseif op == "closedpos" then
+    for i = first, last do
+      os.execute("sed -i 's/mpvss/#mpvss/g' " .. node.datadir(i) .. "/multiverse.conf")
+    end
+elseif op == "opendpos" then
+    for i = first, last do
+      os.execute("sed -i 's/#mpvss/mpvss/g' " .. node.datadir(i) .. "/multiverse.conf")
+    end
+elseif op == "clearlog" then
+    for i = first, last do
+      os.execute("rm -f " .. node.datadir(i) .. "/multiverse.log")
     end
 else
   print("Unknown operator " .. op)

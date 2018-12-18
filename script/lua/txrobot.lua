@@ -31,25 +31,20 @@ function txrobot.run(index, count)
       local per = count // (#forks - 1)
       local realcount = per * (#forks - 1)
       works = works + realcount
-      print("begin... " .. os.time())
       for i, v in ipairs(forks) do
         local fork = v["fork"]
         if fork ~= rpc.genesis then
-          for j = 1, 1 do
-            rpc.asyncstart(sendtx, host, port, from, to, fork, 1)
-          end
+          -- rpc.asyncstart(sendtx, host, port, from, to, fork, per)
+          sendtx(host, port, from, to, fork, per)
         end
       end
-      print("begin... " .. os.time())
-      print("wait... " .. realcount)
+      print("waiting... " .. realcount)
       local w = rpcasyncwait(1000)
       print("completed... " .. w)
       works = works - w
-      print("remained... " .. works)
-      while works > 5000 and running do
+      while works > 100 and running do
         w = rpcasyncwait(1000)
         works = works - w
-        print("remained... " .. works)
       end
     else
       sleep(1000)
