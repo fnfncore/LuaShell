@@ -8,7 +8,7 @@ local rpc = require("rpc")
 local node = require("node")
 local key = require("key")
 
-local function sendtx(from, to)
+local function sendtx(host, port, from, to, fork, count)
   local host, port = node.rpchost(index), node.rpcport(index)
   local err, forks = rpc:sethost(host, port).listfork()
   if err == 0 and forks[to] then
@@ -21,14 +21,28 @@ local function sendtx(from, to)
   end
 end
 
-function txrobot.run(index)
+function txrobot.run(index, count)
+  local host, port = node.rpchost(index), node.rpcport(index)
+  local from = key.keypair[index][1]["pubkeyaddr"]
+  local to = key.keypair[index % 50 + 1][1]["pubkeyaddr"]
+  rpc:sethost(host, port).unlockkey(pubkeyaddr, "123")
+
   while running do
-    for i = 1, 20 do
-      if i ~= index then
-        rpc:asyncstart(sendtx, index, i)
+    local err, forks = rpc:sethost(host, port).listfork()
+    if err == 0 and #forks > 1 then
+      local per = count // (#forks - 1)
+      local realcount = per * (#forks - 1)
+      for i = 1, #forks do
+        local fork = forks[i]["fork"]
+        if fork ~= rpc.genesis then
+          rpc:asyncstart(sendtx, host, port, from, to, fork, per)
+        end
       end
+      print("wait for work:" .. realcount .. " done:" .. rpcasyncwait(1000))
+    else
+      print("listfork error")
+      sleep(1000)
     end
-    print("wait", rpcasyncwait(1000))
   end
 end
 

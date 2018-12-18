@@ -59,6 +59,9 @@ local function createconf(n, keys)
   io.write("rpcport=" .. node.rpcport(n) .. "\n")
   io.write("dnseedport=" .. node.dnseedport(n) .. "\n")
   io.write("dbpport=" .. node.dbpport(n) .. "\n")
+  io.write("maxconnections=100\n")
+  io.write("rpcmaxconnections=100\n")
+  io.write("dbpport=" .. node.dbpport(n) .. "\n")
   io.flush()
   io.close()
   return true
@@ -112,7 +115,7 @@ local function newdpos(first, last)
   return dpostxs
 end
 
-local function createdelegate(dpostxs, first, last)
+local function createdelegate(dpostxs, first, last, amount)
   for i = first, last do
     local tx = dpostxs[i]
     if tx then
@@ -121,7 +124,7 @@ local function createdelegate(dpostxs, first, last)
       end
 
       local keys = getkeys(i)
-      err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", 20000000)
+      err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
       if err ~= 0 then
         print("addnewtemplate delegate error", ret)
       end
@@ -223,10 +226,11 @@ if not last or last < first then
 elseif last > 50 then
   last = 50
 end
-print("running", running)
+
 if op == "new" then
+  local amount = len(args) > 3 and tonumber(args[4]) or 20000000
   dpostxs = newdpos(first, last)
-  createdelegate(dpostxs, first, last)
+  createdelegate(dpostxs, first, last, amount)
 elseif op == "start" then
   startdpos(first, last)
 elseif op == "stop" then
@@ -238,9 +242,10 @@ elseif op == "remove" then
 elseif op == "createfork" then
   createfork(first, last)
 elseif op == "createdelegate" then
+  local amount = #args > 3 and tonumber(args[4]) or 20000000
   for i = first, last do
     keys = getkeys(i)
-    rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", 20000000)
+    rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
 else
   print("Unknown operator " .. op)
