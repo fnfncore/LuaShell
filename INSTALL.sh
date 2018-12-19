@@ -51,10 +51,11 @@ fi
 
 # copy lua
 if [ "$os" == "Darwin" ]; then
-    mkdir -p ~/Library/Application\ Support/LuaShell
-    cp -r ${project_path}/script/lua ~/Library/Application\ Support/LuaShell/ 
+    mkdir -p ~/Library/Application\ Support/LuaShell/lua
+    cp -r ${project_path}/script/lua/* ~/Library/Application\ Support/LuaShell/lua/
 else
-    cp -r ${project_path}/script/lua ~/.luashell
+    mkdir -p ~/.luashell/lua
+    cp -r ${project_path}/script/lua/* ~/.luashell/lua/
 fi
 
 cd $origin_path

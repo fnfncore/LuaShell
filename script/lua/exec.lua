@@ -96,25 +96,25 @@ local function newdpos(first, last, amount)
         end
       end
 
-      if i ~= 0 then
-        rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
-        local err, ret = rpc.listfork()
-        if err ~= 0 then
-          print("listfork error:", ret)
-        else
-          for _, v in ipairs(ret) do
-            if v["fork"] ~= rpc.genesis then
+      rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
+      local err, ret = rpc.listfork()
+      if err ~= 0 then
+        print("listfork error:", ret)
+      else
+        for _, v in ipairs(ret) do
+          if v["fork"] ~= rpc.genesis then
+            if i ~= 0 then
               err, r = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 10000, nil, v["fork"])
               if err ~= 0 then
                 print("sendfrom error to " .. keys[1]["pubkeyaddr"] .. " on " .. v["fork"] .. ": " .. r)
               end
+            end
+          else
+            err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], amount)
+            if err ~= 0 then
+              print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
             else
-              err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], amount)
-              if err ~= 0 then
-                print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
-              else
-                dpostxs[i] = ret
-              end
+              dpostxs[i] = ret
             end
           end
         end
@@ -141,6 +141,23 @@ local function newwallet(first, last)
         err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
         if err == 0 then
           break
+        end
+      end
+
+      if i ~= 0 then
+        rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
+        local err, ret = rpc.listfork()
+        if err ~= 0 then
+          print("listfork error:", ret)
+        else
+          for _, v in ipairs(ret) do
+            if v["fork"] ~= rpc.genesis then
+              err, r = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 10000, nil, v["fork"])
+              if err ~= 0 then
+                print("sendfrom error to " .. keys[1]["pubkeyaddr"] .. " on " .. v["fork"] .. ": " .. r)
+              end
+            end
+          end
         end
       end
     end
@@ -284,18 +301,20 @@ elseif op == "createdelegate" then
     keys = getkeys(i)
     rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
-elseif op == "txrobotrun" then
+elseif op == "txrobotrun" or op == "txrobotrundaemon" then
   local count = #args >= 4 and tonumber(args[4]) or 1
-  if first == last then
+  if first == last and op == "txrobotrun" then
     txrobot.run(first, count)
   else
     for i = first, last do
-      os.execute("nohup luashell exec txrobotrun " .. i .. " " .. count .. " & > /dev/null 2>&1")
+      local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. count .. "'"
+      os.execute(cmd)
     end
   end
 elseif op == "txrobotstop" then
     for i = first, last do
-      os.execute("ps -ef | grep 'luashell exec txrobotrun " .. i .. "' | grep -v grep | awk '{print $2}' | xargs kill -2")
+      local cmd = "luashell exec txrobotrun " .. i ..
+      os.execute("ps -ef | grep '" .. cmd .. "' | grep -v grep | awk '{print $2}' | xargs kill -2")
     end
 elseif op == "closedpos" then
     for i = first, last do

@@ -24,9 +24,8 @@ function txrobot.run(index, count)
   rpc.unlockkeyhost(host, port, from, "123")
 
   local works = 0
-  -- while running do
+  while running do
     local err, forks = rpc.listforkhost(host, port)
-    print(err, forks, host, port)
     if err == 0 and #forks > 1 then
       local per = count // (#forks - 1)
       local realcount = per * (#forks - 1)
@@ -49,7 +48,7 @@ function txrobot.run(index, count)
     else
       sleep(1000)
     end
-  -- end
+  end
 end
 
 return txrobot

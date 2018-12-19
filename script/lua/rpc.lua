@@ -488,15 +488,15 @@ local rpchost, rpcport = "", 0
 rpc.genesis = "c8f10736fb9b03a2d224c9d79b60ccc156b4bf9c28072fb332d0ea5fc104e085"
 
 function rpc.callhost(method, host, port, ...)
-  if type(host) ~= "string" or host == "localhost" then
+  if not host or type(host) ~= "string" or host == "localhost" then
       host = "127.0.0.1"
   end
 
   if type(port) == "string" then
     port = tonumber(port)
   end
-  if type(port) ~= "number" or port <= 0 or port > 65535 then
-    port = 6811
+  if not port or type(port) ~= "number" or port <= 0 or port > 65535 then
+    port = 6812
   end
 
   local co, ismain = coroutine.running()
