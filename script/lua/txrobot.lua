@@ -17,7 +17,7 @@ local function sendtx(host, port, from, to, fork, count)
   end
 end
 
-function txrobot.run(index, count)
+function txrobot.run(index, count, fork)
   local host, port = node.rpchost(index), node.rpcport(index)
   local from = key.keypair[index][1]["pubkeyaddr"]
   local to = key.keypair[index % 50 + 1][1]["pubkeyaddr"]
@@ -25,29 +25,21 @@ function txrobot.run(index, count)
 
   local works = 0
   while running do
+    local t0 = os.time()
     local err, forks = rpc.listforkhost(host, port)
     if err == 0 and #forks > 1 then
-      local per = count // (#forks - 1)
-      local realcount = per * (#forks - 1)
-      works = works + realcount
+      local per = fork and count or count // (#forks - 1)
       for i, v in ipairs(forks) do
-        local fork = v["fork"]
-        if fork ~= rpc.genesis then
-          -- rpc.asyncstart(sendtx, host, port, from, to, fork, per)
+        local f = v["fork"]
+        if (fork and fork == f) or fork ~= rpc.genesis then
           sendtx(host, port, from, to, fork, per)
         end
-      end
-      print("waiting... " .. realcount)
-      local w = rpcasyncwait(1000)
-      print("completed... " .. w)
-      works = works - w
-      while works > 100 and running do
-        w = rpcasyncwait(1000)
-        works = works - w
       end
     else
       sleep(1000)
     end
+    local t1 = os.time()
+    print("tx",(t1 - t0) * 1.0 / count)
   end
 end
 

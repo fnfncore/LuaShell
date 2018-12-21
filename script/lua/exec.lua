@@ -58,6 +58,9 @@ local function createconf(n, keys, miner)
   elseif miner then
     io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
     io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+  else
+    io.write("#mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+    io.write("#mpvsskey=" .. keys[2]["privkey"] .. "\n")
   end
   io.write("rpcmaxconnections=200\n")
   io.write("maxconnections=200\n")
@@ -96,25 +99,25 @@ local function newdpos(first, last, amount)
         end
       end
 
-      rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
-      local err, ret = rpc.listfork()
-      if err ~= 0 then
-        print("listfork error:", ret)
-      else
-        for _, v in ipairs(ret) do
-          if v["fork"] ~= rpc.genesis then
-            if i ~= 0 then
+      if i ~= 0 then
+        rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
+        local err, ret = rpc.listfork()
+        if err ~= 0 then
+          print("listfork error:", ret)
+        else
+          for _, v in ipairs(ret) do
+            if v["fork"] ~= rpc.genesis then
               err, r = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], 10000, nil, v["fork"])
               if err ~= 0 then
                 print("sendfrom error to " .. keys[1]["pubkeyaddr"] .. " on " .. v["fork"] .. ": " .. r)
               end
-            end
-          else
-            err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], amount)
-            if err ~= 0 then
-              print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
             else
-              dpostxs[i] = ret
+              err, ret = rpc.sendfrom(key.main[1]["pubkeyaddr"], keys[1]["pubkeyaddr"], amount)
+              if err ~= 0 then
+                print("sendfrom dpos token error to " .. keys[1]["pubkeyaddr"] .. ": " .. err, ret)
+              else
+                dpostxs[i] = ret
+              end
             end
           end
         end
@@ -297,14 +300,16 @@ elseif op == "createfork" then
   createfork(first, last)
 elseif op == "createdelegate" then
   local amount = #args >= 4 and tonumber(args[4]) or 20000000
+  os.execute("luashell exec opendpos " .. first .. " " .. last)
   for i = first, last do
     keys = getkeys(i)
     rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
 elseif op == "txrobotrun" or op == "txrobotrundaemon" then
   local count = #args >= 4 and tonumber(args[4]) or 1
+  local fork = #args >= 5 and args[5] or nil
   if first == last and op == "txrobotrun" then
-    txrobot.run(first, count)
+    txrobot.run(first, count, fork)
   else
     for i = first, last do
       local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. count .. "'"
