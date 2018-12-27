@@ -225,12 +225,12 @@ local function removedpos(first, last)
   end
 end
 
-local function createfork(first, last)
+local function createfork(first, last, hash)
   rpc.unlockkey(key.main[1]["pubkeyaddr"], "123")
 
   local forks = {}
   for i = first, last do
-    local err, msg, hash, txid = rpc.createfork(nil, nil, rpc.genesis, key.main[1]["pubkeyaddr"], 1000000, "fork"..i, "fork"..i, 1)
+    local err, msg, hash, txid = rpc.createfork(nil, nil, hash, key.main[1]["pubkeyaddr"], 1000000, "fork"..i, "fork"..i, 1)
     if err ~= 0 then
       print(msg)
     else
@@ -297,7 +297,8 @@ elseif op == "purge" then
 elseif op == "remove" then
   removedpos(first, last)
 elseif op == "createfork" then
-  createfork(first, last)
+  local hash = #args >= 4 and args[4] or rpc.genesis
+  createfork(first, last, hash)
 elseif op == "createdelegate" then
   local amount = #args >= 4 and tonumber(args[4]) or 20000000
   os.execute("luashell exec opendpos " .. first .. " " .. last)
@@ -306,13 +307,12 @@ elseif op == "createdelegate" then
     rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
 elseif op == "txrobotrun" or op == "txrobotrundaemon" then
-  local count = #args >= 4 and tonumber(args[4]) or 1
-  local fork = #args >= 5 and args[5] or nil
+  local fork = #args >= 4 and args[4] or nil
   if first == last and op == "txrobotrun" then
     txrobot.run(first, count, fork)
   else
     for i = first, last do
-      local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. count .. "'"
+      local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. count .. " " .. fork .. "'"
       os.execute(cmd)
     end
   end

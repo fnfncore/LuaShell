@@ -10,6 +10,10 @@ local key = require("key")
 
 local function sendtx(host, port, from, to, fork, count)
   for i = 1, count do
+    if not running then
+      return
+    end
+
     local err, ret = rpc.sendfromhost(host, port, from, to, 0.000001, nil, fork)
     if err ~= 0 then
       print(ret)
@@ -17,7 +21,7 @@ local function sendtx(host, port, from, to, fork, count)
   end
 end
 
-function txrobot.run(index, count, fork)
+function txrobot.run(index, fork)
   local host, port = node.rpchost(index), node.rpcport(index)
   local from = key.keypair[index][1]["pubkeyaddr"]
   local to = key.keypair[index % 50 + 1][1]["pubkeyaddr"]
@@ -28,18 +32,15 @@ function txrobot.run(index, count, fork)
     local t0 = os.time()
     local err, forks = rpc.listforkhost(host, port)
     if err == 0 and #forks > 1 then
-      local per = fork and count or count // (#forks - 1)
       for i, v in ipairs(forks) do
         local f = v["fork"]
-        if (fork and fork == f) or fork ~= rpc.genesis then
-          sendtx(host, port, from, to, fork, per)
+        if (fork and fork == f) or (not fork and f ~= rpc.genesis) then
+          sendtx(host, port, from, to, fork, 1)
         end
       end
     else
       sleep(1000)
     end
-    local t1 = os.time()
-    print("tx",(t1 - t0) * 1.0 / count)
   end
 end
 
