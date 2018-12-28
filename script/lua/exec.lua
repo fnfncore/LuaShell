@@ -309,16 +309,16 @@ elseif op == "createdelegate" then
 elseif op == "txrobotrun" or op == "txrobotrundaemon" then
   local fork = #args >= 4 and args[4] or nil
   if first == last and op == "txrobotrun" then
-    txrobot.run(first, count, fork)
+    txrobot.run(first, fork)
   else
     for i = first, last do
-      local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. count .. " " .. fork .. "'"
+      local cmd = "screen -S txrobot" .. i .. "-d -m bash -c 'luashell exec txrobotrun " .. i .. " " .. i .. " " .. (fork and fork or "") .. "'"
       os.execute(cmd)
     end
   end
 elseif op == "txrobotstop" then
     for i = first, last do
-      local cmd = "luashell exec txrobotrun " .. i ..
+      local cmd = "luashell exec txrobotrun " .. i
       os.execute("ps -ef | grep '" .. cmd .. "' | grep -v grep | awk '{print $2}' | xargs kill -2")
     end
 elseif op == "closedpos" then

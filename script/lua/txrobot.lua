@@ -35,7 +35,7 @@ function txrobot.run(index, fork)
       for i, v in ipairs(forks) do
         local f = v["fork"]
         if (fork and fork == f) or (not fork and f ~= rpc.genesis) then
-          sendtx(host, port, from, to, fork, 1)
+          sendtx(host, port, from, to, f, 1)
         end
       end
     else
