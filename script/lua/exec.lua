@@ -43,7 +43,7 @@ end
 local function createconf(n, keys, miner)
   local dir = node.datadir(n)
 
-  if util.direxist(dir) then
+  if util.direxist(dir) and util.fileexist(dir.. "/multiverse.conf") then
     print(dir .. " has been existed. ")
     return false
   end

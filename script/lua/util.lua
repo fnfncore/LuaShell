@@ -11,6 +11,13 @@ function util.direxist(path)
   return false
 end
 
+function util.fileexist(path)
+  if os.execute('ls "' .. path .. '" > /dev/null 2>&1') then
+    return true
+  end
+  return false
+end
+
 function util.dumptable(tab, indent)
   if indent == nil then
     indent = ""
