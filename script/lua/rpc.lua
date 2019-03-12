@@ -485,7 +485,7 @@ function rpc.asyncstart(fn, ...)
 end
 
 local rpchost, rpcport = "", 0
-rpc.genesis = "c8f10736fb9b03a2d224c9d79b60ccc156b4bf9c28072fb332d0ea5fc104e085"
+rpc.genesis = "d62c1fca5f2aacf9cf5738ed057d9987373508d8984734fa8fac05a6780a7cfd"
 
 function rpc.callhost(method, host, port, ...)
   if not host or type(host) ~= "string" or host == "localhost" then

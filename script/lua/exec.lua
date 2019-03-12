@@ -51,10 +51,10 @@ local function createconf(n, keys, miner)
   os.execute("mkdir -p " .. dir)
   io.output(dir.. "/multiverse.conf")
   if n == 0 then
-    io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
-    io.write("blake512key=" .. keys[2]["privkey"] .. "\n")
     io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
     io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+    io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
+    io.write("blake512key=" .. keys[3]["privkey"] .. "\n")
   elseif miner then
     io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
     io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
@@ -85,14 +85,9 @@ local function newdpos(first, last, amount)
     local keys = getkeys(i)
     if keys and createconf(i, keys, true) then
       rpc.stophost(node.rpchost(i), node.rpcport(i))
-      os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. ";" ..
-        "create database " .. node.dbname(i) .. " default charset utf8 collate utf8_general_ci;" ..
-        "grant all on " .. node.dbname(i) .. ".* to multiverse@localhost;" ..
-        "flush privileges;\"")
-      
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
-        sleep(5000)
+        sleep(5*1000)
         err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
         if err == 0 then
           break
@@ -133,14 +128,9 @@ local function newwallet(first, last)
     local keys = getkeys(i)
     if keys and createconf(i, keys) then
       rpc.stophost(node.rpchost(i), node.rpcport(i))
-      os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. ";" ..
-        "create database " .. node.dbname(i) .. " default charset utf8 collate utf8_general_ci;" ..
-        "grant all on " .. node.dbname(i) .. ".* to multiverse@localhost;" ..
-        "flush privileges;\"")
-      
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
-        sleep(5000)
+        sleep(5*1000)
         err, _ = rpc.importprivkeyhost(node.rpchost(i), node.rpcport(i), keys[1]["privkey"], "123")
         if err == 0 then
           break
@@ -170,18 +160,21 @@ end
 
 local function createdelegate(dpostxs, first, last, amount)
   for i = first, last do
+    local iscreate = true
     if i ~= 0 then
       local tx = dpostxs[i]
       if tx then
         if waittx(node.rpchost(i), node.rpcport(i), tx) ~= 0 then
-          return
+          iscreate = false
         end
+      end
+    end
 
-        local keys = getkeys(i)
-        err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
-        if err ~= 0 then
-          print("addnewtemplate delegate error", ret)
-        end
+    if iscreate then
+      local keys = getkeys(i)
+      err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
+      if err ~= 0 then
+        print("addnewtemplate delegate error", ret)
       end
     end
   end
@@ -217,10 +210,7 @@ end
 
 local function removedpos(first, last)
   for i = first, last do
-    os.execute("multiverse stop -rpchost=" .. node.rpchost(i) .. " -rpcport=" .. node.rpcport(i))
-    sleep(1000)
     os.execute("rm -rf " .. node.datadir(i))
-    os.execute("mysql -uroot -p123456 -e \"drop database if exists " .. node.dbname(i) .. "\";")
     print("node " .. i .. " has been removed.")
   end
 end
