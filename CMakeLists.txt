@@ -31,9 +31,10 @@ find_package(Boost 1.58.0 REQUIRED COMPONENTS
 find_package(OpenSSL 1.0.0 REQUIRED) 
 find_package(Readline 5.0 REQUIRED)
 
-if(${USE_SSL_110} MATCHES "TRUE")
+if(OPENSSL_VERSION VERSION_EQUAL 1.1.0 OR 
+    (OPENSSL_VERSION VERSION_GREATER 1.1.0 AND OPENSSL_VERSION VERSION_LESS 1.2.0))
     add_definitions(-DUSE_SSL_110)
-endif(${USE_SSL_110} MATCHES "TRUE")
+endif()
 
 # libs
 if(WIN32)
