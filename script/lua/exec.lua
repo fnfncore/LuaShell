@@ -63,6 +63,8 @@ local function createconf(n, keys, miner)
     io.write("#mpvsskey=" .. keys[2]["privkey"] .. "\n")
   end
   io.write("rpcmaxconnections=200\n")
+  io.write("rpcthreadnumber=2\n")
+  io.write("threadnumber=2\n")
   io.write("maxconnections=200\n")
   io.write("listen\n")
   io.write("addgroup=" .. rpc.genesis .. "\n")

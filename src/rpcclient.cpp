@@ -153,6 +153,7 @@ bool CRPCClient::GetResponse(uint64 nNonce,Object& jsonReq, const string strHost
 
     httpGet.strContent = write_string(Value(jsonReq), false) + "\n";
 
+    ioComplt.Reset();
     if (!pHttpGet->DispatchEvent(&eventHttpGet))
     {
         throw runtime_error("failed to send json request");
@@ -160,7 +161,6 @@ bool CRPCClient::GetResponse(uint64 nNonce,Object& jsonReq, const string strHost
 
     if (nNonce == 0)
     {
-        ioComplt.Reset();
         bool fResult = false;
         return (ioComplt.WaitForComplete(fResult) && fResult);
     }
