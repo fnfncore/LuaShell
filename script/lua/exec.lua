@@ -8,12 +8,17 @@ local node = require("node")
 local rpc = require("rpc")
 local txrobot = require("txrobot")
 
-local function getkeys(n)
+local function getkeys(n, supernode)
   local keys = nil
-  if n == 0 then
+  
+  if supernode then
     keys = key.main
   else
-    keys = key.keypair[n]
+    if n == 0 then
+      keys = key.main
+    else
+      keys = key.keypair[n]
+    end
   end
 
   return keys
@@ -40,7 +45,7 @@ local function waittx(host, port, tx, tm, confirmed)
   return err
 end
 
-local function createconf(n, keys, miner)
+local function createconf(n, keys, miner, supernode)
   local dir = node.datadir(n)
 
   if util.direxist(dir) and util.fileexist(dir.. "/multiverse.conf") then
@@ -50,27 +55,62 @@ local function createconf(n, keys, miner)
 
   os.execute("mkdir -p " .. dir)
   io.output(dir.. "/multiverse.conf")
-  if n == 0 then
-    io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
-    io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
-    io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
-    io.write("blake512key=" .. keys[3]["privkey"] .. "\n")
-  elseif miner then
-    io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
-    io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
-  else
-    io.write("#mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
-    io.write("#mpvsskey=" .. keys[2]["privkey"] .. "\n")
+  
+  if not supernode then
+    if n == 0 then
+      io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+      io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("blake512key=" .. keys[3]["privkey"] .. "\n")
+    elseif miner then
+      io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+    else
+      io.write("#mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("#mpvsskey=" .. keys[2]["privkey"] .. "\n")
+    end
+    io.write("rpcmaxconnections=200\n")
+    io.write("rpcthreadnumber=2\n")
+    io.write("threadnumber=2\n")
+    io.write("maxconnections=200\n")
+    io.write("listen\n")
+    io.write("addgroup=" .. rpc.genesis .. "\n")
+    if n ~= 0 then
+      io.write("addnode=127.0.0.1:6811\n")
+    end
   end
-  io.write("rpcmaxconnections=200\n")
-  io.write("rpcthreadnumber=2\n")
-  io.write("threadnumber=2\n")
-  io.write("maxconnections=200\n")
-  io.write("listen\n")
-  io.write("addgroup=" .. rpc.genesis .. "\n")
-  if n ~= 0 then
-    io.write("addnode=127.0.0.1:6811\n")
+
+  if supernode then
+    if n == 0 then
+      io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+      io.write("blake512address=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("blake512key=" .. keys[3]["privkey"] .. "\n")
+      io.write("listen\n")
+      io.write("dbplisten\n")
+      io.write("dbpallowip=*.*.*.*\n")
+      io.write("enablesupernode\n")
+    elseif miner then
+      io.write("mpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("mpvsskey=" .. keys[2]["privkey"] .. "\n")
+    else
+      io.write("#forkmpvssaddress=" .. keys[1]["pubkeyaddr"] .. "\n")
+      io.write("#forkmpvsskey=" .. keys[2]["privkey"] .. "\n")
+    end
+    io.write("rpcmaxconnections=200\n")
+    io.write("rpcthreadnumber=2\n")
+    io.write("threadnumber=2\n")
+    io.write("maxconnections=200\n")
+    io.write("addgroup=" .. rpc.genesis .. "\n")
+    if n ~= 0 then
+      io.write("parentnode=127.0.0.1:6815\n")
+      io.write("enablesupernode\n")
+      io.write("enableforknode\n")
+      io.write("dbplisten\n")
+      io.write("dbpallowip=*.*.*.*\n")
+    end
   end
+  
   io.write("dbname=" .. node.dbname(n) .. "\n")
   io.write("port=" .. node.port(n) .. "\n")
   io.write("rpcport=" .. node.rpcport(n) .. "\n")
@@ -81,11 +121,11 @@ local function createconf(n, keys, miner)
   return true
 end
 
-local function newdpos(first, last, amount)
+local function newdpos(first, last, amount, supernode)
   local dpostxs = {}
   for i = first, last do
-    local keys = getkeys(i)
-    if keys and createconf(i, keys, true) then
+    local keys = getkeys(i, supernode)
+    if keys and createconf(i, keys, true, supernode) then
       rpc.stophost(node.rpchost(i), node.rpcport(i))
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
@@ -125,10 +165,10 @@ local function newdpos(first, last, amount)
   return dpostxs
 end
 
-local function newwallet(first, last)
+local function newwallet(first, last, supernode)
   for i = first, last do
-    local keys = getkeys(i)
-    if keys and createconf(i, keys) then
+    local keys = getkeys(i,supernode)
+    if keys and createconf(i, keys, false, supernode) then
       rpc.stophost(node.rpchost(i), node.rpcport(i))
       os.execute("multiverse -debug -daemon -datadir=" .. node.datadir(i) .. " >> " .. node.log(i) .. " 2>&1")
       while running do
@@ -160,6 +200,25 @@ local function newwallet(first, last)
   end
 end
 
+local function newrootnode(first, last, amount)
+  newdpos(first, last, amount, true)
+end
+
+local function newforknode(first, last)
+  newwallet(first, last, true)
+end
+
+local function newsupernode(first, last)
+  if first == 0 then
+    newrootnode(first, first, 20000000)
+    if last > first then
+      newforknode(first + 1, last)
+    end
+  else
+    newforknode(first, last)
+  end
+end
+
 local function createdelegate(dpostxs, first, last, amount)
   for i = first, last do
     local iscreate = true
@@ -173,7 +232,7 @@ local function createdelegate(dpostxs, first, last, amount)
     end
 
     if iscreate then
-      local keys = getkeys(i)
+      local keys = getkeys(i, false)
       err, ret = rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
       if err ~= 0 then
         print("addnewtemplate delegate error", ret)
@@ -276,10 +335,12 @@ end
 
 if op == "new" then
   local amount = #args >= 4 and tonumber(args[4]) or 20000000
-  dpostxs = newdpos(first, last, amount + 1)
+  dpostxs = newdpos(first, last, amount + 1, false)
   createdelegate(dpostxs, first, last, amount)
 elseif op == "wallet" then
-  newwallet(first, last)
+  newwallet(first, last, false)
+elseif op == "supernode" then
+  newsupernode(first, last)
 elseif op == "run" then
   rundpos(first, last)
 elseif op == "stop" then
@@ -295,7 +356,7 @@ elseif op == "createdelegate" then
   local amount = #args >= 4 and tonumber(args[4]) or 20000000
   os.execute("luashell exec opendpos " .. first .. " " .. last)
   for i = first, last do
-    keys = getkeys(i)
+    keys = getkeys(i, false)
     rpc.createdelegate(node.rpchost(i), node.rpcport(i), keys[2]["pubkey"], keys[1]["pubkeyaddr"], "123", amount)
   end
 elseif op == "txrobotrun" or op == "txrobotrundaemon" then
