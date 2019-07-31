@@ -138,7 +138,7 @@ bool CRPCClient::GetResponse(uint64 nNonce,Object& jsonReq, const string strHost
     CNetHost host(strHost.empty() ? WalleveConfig()->strRPCConnect : strHost,
         (nPort == 0) ? WalleveConfig()->nRPCPort : nPort);
     httpGet.mapHeader["host"] = host.ToString();
-    httpGet.mapHeader["url"] = string("/") + "0.1.0";
+    httpGet.mapHeader["url"] = string("/") + "0.2.0";
     httpGet.mapHeader["method"] = "POST";
     httpGet.mapHeader["accept"] = "application/json";
     httpGet.mapHeader["content-type"] = "application/json";
