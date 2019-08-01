@@ -927,4 +927,28 @@ key.keypair =
   },
 }
 
+function key.getpubkey(index,pos)
+  if index == 0 then
+    return key.main[pos]["pubkey"]
+  else
+    return key.keypair[index][pos]["pubkey"]
+  end
+end
+
+function key.getprivkey(index,pos)
+  if index == 0 then
+    return key.main[pos]["privkey"]
+  else
+    return key.keypair[index][pos]["privkey"]
+  end
+end
+
+function key.getpubkeyaddr(index,pos)
+  if index == 0 then
+    return key.main[pos]["pubkeyaddr"]
+  else
+    return key.keypair[index][pos]["pubkeyaddr"]
+  end
+end
+
 return key
